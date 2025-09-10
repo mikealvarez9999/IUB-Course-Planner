@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>IUB Course Planner</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #121821;
+      --muted: #7a8596;
+      --text: #e7edf5;
+      --accent: #49a6e9;
+      --danger: #ef4444;
+      --ok: #10b981;
+      --grid-line: #1f2937;
+      --chip: #273041;
+      --toast-bg: #1f2937;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; color: var(--text); background: linear-gradient(180deg, #0b0f14 0%, #0e131a 100%);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+    header {
+      padding: 16px 20px; border-bottom: 1px solid #18202b; background: #0d131b; position: sticky; top: 0; z-index: 10;
+      display:flex; gap:16px; align-items:center; flex-wrap:wrap;
+    }
+    header h1 { font-size: 18px; margin: 0; letter-spacing: 0.2px; }
+    header .sub { color: var(--muted); font-size: 12px; margin-left: 8px; }
+
+    /* Bigger plan panel on the right */
+    .container { display: grid; grid-template-columns: 1fr 600px; gap: 16px; padding: 16px; }
+    .panel { background: var(--panel); border: 1px solid #1a2230; border-radius: 10px; }
+    .panel h2 { margin: 0 0 8px 0; font-size: 14px; color: #b8c5d6; letter-spacing: 0.2px; }
+    .panel .body { padding: 12px; }
+    .row { display:flex; gap: 8px; align-items:center; flex-wrap:wrap; }
+    input[type="text"], select {
+      width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid #263044; background: #0f1520; color: var(--text);
+      outline: none; font-size: 14px;
+    }
+    .btn {
+      appearance: none; border: 1px solid #263044; color: var(--text); background: #122034; padding: 8px 10px; border-radius: 8px;
+      font-size: 13px; cursor: pointer;
+    }
+    .btn:hover { filter: brightness(1.1); }
+    .btn.accent { background: linear-gradient(135deg, #2a6fbe, #49a6e9); border-color: transparent; }
+    .btn.alt { background: #212b3d; }
+    .btn.danger { background: #2a1518; border-color: #412127; color: #ffb4b4; }
+
+    .plans { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .plan {
+      padding: 6px 12px; border-radius: 999px; border: 1px solid #2a3347; background: #101827; cursor:pointer; font-size: 12px;
+      color: #cfe6ff;
+    }
+    .plan.active { border-color: #3b82f6; box-shadow: inset 0 0 0 1px #3b82f6; color: #ffffff; }
+    .plan.badge { background:#172036; color:#cfe6ff; }
+    .plan.new { background:#18314f; border-color:#264b7b; }
+
+    .courses .toolbar { display:flex; gap:8px; align-items:center; margin-bottom: 8px; }
+    .courses .table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .courses th, .courses td { border-bottom: 1px solid #1a2230; padding: 8px; vertical-align: top; }
+    .courses th { color: #93a6bf; text-align: left; position: sticky; top: 0; background: #101722; z-index: 1; }
+    .tag { font-size: 11px; color: #cbd5e1; background: #243044; padding: 2px 6px; border-radius: 6px; border: 1px solid #2b3a55; }
+    .avail.ok { color: var(--ok); }
+    .avail.full { color: var(--danger); }
+    .actions { display:flex; gap:6px; }
+    .small { font-size: 12px; color: var(--muted); }
+    .right { text-align: right; }
+    .nowrap { white-space: nowrap; }
+    .wrap { word-break: break-word; }
+    .footnote { color: #9cb0c8; font-size: 12px; margin-top: 8px; }
+
+    /* Schedule with discrete slots aligned under day headers (no Friday) */
+    .schedule {
+      position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #1a2230; background: #0f1520;
+    }
+    .schedule .slots {
+      position: absolute; left: 0; top: 0; bottom: 0; width: 110px; border-right: 1px solid #1b2637; color: #9cb0c8; font-size: 11px;
+      background:#101722;
+    }
+    .slots .slots-header {
+      position: sticky; top: 0; height: 24px; border-bottom: 1px solid #1a2230; background:#101722;
+    }
+    .schedule .slot {
+      position: absolute; left: 0; right: 0; border-top: 1px dashed var(--grid-line); padding: 4px 6px;
+    }
+    .schedule .days {
+      position: absolute; left: 110px; right: 0; top: 0; bottom: 0; display: grid; grid-template-columns: repeat(6, 1fr);
+    }
+    .day-col { border-left: 1px solid #1b2637; position: relative; }
+    .day-col .day-header {
+      position: sticky; top: 0; background: #101722; padding: 4px 6px; border-bottom: 1px solid #1a2230; z-index: 1; height: 24px; display:flex; align-items:center;
+    }
+    .block {
+      position: absolute; left: 6px; right: 6px; border-radius: 8px; padding: 6px 8px; font-size: 12px; color: #dce7f6;
+      border: 1px solid #31527b; background: linear-gradient(180deg, rgba(49, 115, 190, 0.35), rgba(36, 65, 109, 0.35));
+      overflow: hidden;
+    }
+
+    /* Plan title (white, heading-like) */
+    .plan-title {
+      font-size: 16px; font-weight: 700; color: #ffffff; margin: 6px 0 8px 0;
+    }
+
+    .section-list { font-size: 13px; }
+    .section-list .item { border-bottom: 1px dashed #22304a; padding: 6px 0; display:flex; justify-content:space-between; gap:8px; }
+
+    /* Day legend (without Friday) */
+    .legend { display:flex; gap:8px; flex-wrap:wrap; margin-bottom: 8px; }
+    .pill { padding: 2px 6px; border-radius: 999px; background:#193759; border:1px solid #284d78; font-size:11px; color:#cfe6ff; }
+
+    /* Toast bubble */
+    #toast {
+      position: fixed; top: 16px; right: 16px; z-index: 9999;
+      background: var(--toast-bg); color: #fff; border: 1px solid #334155; border-radius: 8px;
+      padding: 10px 12px; font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      opacity: 0; transform: translateY(-8px); transition: opacity .2s ease, transform .2s ease;
+      pointer-events: none;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+
+    @media (max-width: 1100px) {
+      .container { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>IUB Course Planner</h1>
+    <div class="sub">Read-only course list from backend • Plans saved locally</div>
+  </header>
+
+  <div class="container">
+    <!-- Left: courses -->
+    <div class="panel courses">
+      <div class="body">
+        <h2>Courses</h2>
+        <div class="toolbar">
+          <input type="text" id="search" placeholder="Search course code/title/faculty" />
+          <select id="filterDay">
+            <option value="">All days</option>
+          </select>
+          <select id="filterAvail">
+            <option value="">Any availability</option>
+            <option value="open">Open seats</option>
+            <option value="full">Full</option>
+          </select>
+        </div>
+
+        <div id="courseError" class="footnote" style="display:none; color:#ffb4b4;"></div>
+
+        <div style="max-height: 700px; overflow: auto; border:1px solid #1a2230; border-radius:8px;">
+          <table class="table" id="courseTable">
+            <thead>
+              <tr>
+                <th>Course</th>
+                <th>Sec</th>
+                <th>Days/Time</th>
+                <th>Faculty</th>
+                <th>Title</th>
+                <th class="right">Seats</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="courseTbody">
+              <tr><td colspan="7" class="small">Loading courses…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="footnote">Dataset is managed by admins and cannot be modified by users.</div>
+      </div>
+    </div>
+
+    <!-- Right: plans + schedule -->
+    <div class="panel">
+      <div class="body">
+        <h2>Plans</h2>
+        <div class="row" style="margin-bottom:8px">
+          <div class="plans" id="plans"></div>
+          <button class="btn plan new" id="btnQuickAddPlan" title="New plan">+ New Plan</button>
+        </div>
+        <div class="row" style="margin-bottom:8px">
+          <input type="text" id="newPlanName" placeholder="New plan name (optional)" />
+          <button class="btn accent" id="btnAddPlan">Add Plan</button>
+          <button class="btn" id="btnRenamePlan">Rename</button>
+          <button class="btn" id="btnDuplicatePlan">Duplicate</button>
+          <button class="btn danger" id="btnDeletePlan">Delete</button>
+        </div>
+
+        <div style="border-top:1px solid #1a2230; margin:10px 0"></div>
+
+        <div class="legend">
+          <div class="pill">A: Sat</div>
+          <div class="pill">S: Sun</div>
+          <div class="pill">M: Mon</div>
+          <div class="pill">T: Tue</div>
+          <div class="pill">W: Wed</div>
+          <div class="pill">R: Thu</div>
+        </div>
+
+        <div class="plan-title" id="planTitle">Plan A</div>
+
+        <div class="schedule" id="schedule"></div>
+
+        <div style="margin-top:12px;">
+          <div class="row" style="justify-content: space-between;">
+            <div class="small">Conflicts are prevented on add.</div>
+            <button class="btn" id="btnClearActive">Clear active plan</button>
+          </div>
+          <div class="section-list" id="planList" style="margin-top:8px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+  // ---------- Config ----------
+  // No Friday. Day order: A (Sat), S (Sun), M, T, W, R (Thu)
+  const DAY_KEYS = ['A','S','M','T','W','R'];
+  const DAY_NAME_MAP = { A:'Sat', S:'Sun', M:'Mon', T:'Tue', W:'Wed', R:'Thu' };
+  const DAY_MAP = Object.fromEntries(DAY_KEYS.map((k,i)=>[k,i]));
+  const STORAGE_PLANS = 'iub-plans-v4';
+
+  // IUB discrete time slots
+  const SLOTS = [
+    { start: 8*60,        end: 9*60+30,  label: '08:00-09:30' },
+    { start: 9*60+40,     end: 11*60+10, label: '09:40-11:10' },
+    { start: 11*60+20,    end: 12*60+50, label: '11:20-12:50' },
+    { start: 13*60,       end: 14*60+30, label: '13:00-14:30' },
+    { start: 14*60+40,    end: 16*60+10, label: '14:40-16:10' },
+    { start: 16*60+20,    end: 17*60+50, label: '16:20-17:50' },
+  ];
+  const SLOT_HEIGHT = 100; // px per slot
+  const HEADER_OFFSET = 24; // px sticky day header height
+
+  // ---------- State ----------
+  let sections = []; // read-only list from backend (JSON)
+  let plans = [];    // [{id,name,items:[sectionKey]}]
+  let activePlanId = null;
+  const sectionByKey = new Map();
+
+  // ---------- Utilities ----------
+  const $ = sel => document.querySelector(sel);
+  function minutesFromHHMM(s) {
+    const m = s.match(/(\d{2})(\d{2})/);
+    if (!m) return null;
+    return parseInt(m[1],10)*60 + parseInt(m[2],10);
+  }
+  function parseDaysTime(str) {
+    const m = (str||'').trim().match(/^([A-Z]+):?\s*(\d{3,4})-(\d{3,4})$/i);
+    if (!m) return null;
+    const dayCodes = m[1].split('').filter(d => DAY_KEYS.includes(d)); // drop Friday and unknowns
+    const start = minutesFromHHMM(m[2]);
+    const end = minutesFromHHMM(m[3]);
+    if (start == null || end == null) return null;
+    if (dayCodes.length === 0) return null; // e.g., only Friday -> drop
+    return { days: dayCodes, start, end, label: `${m[1]}: ${m[2]}-${m[3]}` };
+  }
+  function keyOf(sec) {
+    // include faculty literally (supports "00 TBA TBA")
+    return `${sec.course}|${sec.section}|${sec.timing.label}|${(sec.faculty||'').trim()}`;
+  }
+  function saveAll() {
+    localStorage.setItem(STORAGE_PLANS, JSON.stringify({ plans, activePlanId }));
+  }
+  function loadAll() {
+    try {
+      const p = JSON.parse(localStorage.getItem(STORAGE_PLANS) || '{}');
+      if (Array.isArray(p.plans)) plans = p.plans;
+      if (p.activePlanId) activePlanId = p.activePlanId;
+    } catch {}
+    // Default Plan A for first-time users
+    if (!Array.isArray(plans) || plans.length === 0) {
+      const id = 'p_' + Math.random().toString(36).slice(2);
+      plans = [{ id, name: 'Plan A', items: [] }];
+      activePlanId = id;
+      saveAll();
+    }
+  }
+  function reindex() {
+    sectionByKey.clear();
+    for (const sec of sections) sectionByKey.set(keyOf(sec), sec);
+  }
+  function overlaps(a, b) {
+    return a.start < b.end && b.start < a.end;
+  }
+  function findConflictingWith(items, candidate) {
+    for (const s of items) {
+      // day overlap?
+      const daySet = new Set(s.timing.days);
+      const anyDay = candidate.timing.days.some(d => daySet.has(d));
+      if (!anyDay) continue;
+      // time overlap?
+      if (overlaps({start:s.timing.start, end:s.timing.end}, {start:candidate.timing.start, end:candidate.timing.end})) {
+        return s;
+      }
+    }
+    return null;
+  }
+  function seatStatus(sec) {
+    const open = Math.max(sec.capacity - sec.enrolled, 0);
+    return { open, full: open === 0 };
+  }
+  function showToast(msg) {
+    const t = $('#toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(showToast._timer);
+    showToast._timer = setTimeout(()=>t.classList.remove('show'), 3000);
+  }
+  function slotIndexFor(start, end) {
+    for (let i=0;i<SLOTS.length;i++) {
+      if (SLOTS[i].start === start && SLOTS[i].end === end) return i;
+    }
+    return -1;
+  }
+
+  // ---------- Backend load ----------
+  async function loadSectionsFromBackend() {
+    const tbody = $('#courseTbody');
+    const errorBox = $('#courseError');
+    try {
+      const resp = await fetch('data/courses.json', { cache: 'no-store' });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+      sections = (data || []).map(row => {
+        const tParsed = parseDaysTime(row.days_time);
+        if (!tParsed) return null;
+        return {
+          course: row.course || 'UNKNOWN',
+          section: parseInt(row.section || '0', 10) || 0,
+          title: row.title || '',
+          faculty: (row.faculty || '').toString(), // supports "00 TBA TBA"
+          timing: tParsed,
+          enrolled: parseInt(row.enrolled || '0', 10) || 0,
+          capacity: parseInt(row.capacity || '0', 10) || 0,
+          credits: parseInt(row.credits || '0', 10) || 0,
+          cat: row.cat || ''
+        };
+      }).filter(Boolean);
+      reindex();
+      errorBox.style.display = 'none';
+    } catch (e) {
+      sections = [];
+      reindex();
+      errorBox.textContent = 'Failed to load courses. Please try again later.';
+      errorBox.style.display = 'block';
+      tbody.innerHTML = '<tr><td colspan="7" class="small">No courses available.</td></tr>';
+    }
+  }
+
+  // ---------- Rendering ----------
+  function renderPlans() {
+    const cont = $('#plans');
+    cont.innerHTML = '';
+    for (const p of plans) {
+      const btn = document.createElement('button');
+      btn.className = 'plan' + (p.id === activePlanId ? ' active' : '');
+      btn.textContent = p.name;
+      btn.onclick = () => { activePlanId = p.id; saveAll(); renderAll(); };
+      cont.appendChild(btn);
+    }
+    const plan = plans.find(p => p.id === activePlanId);
+    $('#planTitle').textContent = plan ? plan.name : '—';
+  }
+
+  function renderCourseTable() {
+    const tbody = $('#courseTbody');
+    const q = ($('#search').value || '').toLowerCase();
+    const dayFilter = $('#filterDay').value || '';
+    const availFilter = $('#filterAvail').value || '';
+
+    const filtered = sections.filter(sec => {
+      // Search includes faculty (e.g., "00 TBA TBA")
+      const hay = `${sec.course} ${sec.title} ${sec.faculty}`.toLowerCase();
+      if (q && !hay.includes(q)) return false;
+      if (dayFilter) {
+        if (!sec.timing.days.includes(dayFilter)) return false;
+      }
+      if (availFilter) {
+        const { full } = seatStatus(sec);
+        if (availFilter === 'open' && full) return false;
+        if (availFilter === 'full' && !full) return false;
+      }
+      return true;
+    });
+
+    const active = plans.find(p => p.id === activePlanId);
+    tbody.innerHTML = '';
+    for (const sec of filtered) {
+      const tr = document.createElement('tr');
+      const { open, full } = seatStatus(sec);
+
+      tr.innerHTML = `
+        <td class="nowrap"><strong>${sec.course}</strong></td>
+        <td>${sec.section}</td>
+        <td><span class="tag">${sec.timing.label}</span></td>
+        <td class="wrap"></td>
+        <td class="wrap">${sec.title || ''}</td>
+        <td class="right"><span class="avail ${full ? 'full' : 'ok'}">${open}/${sec.capacity}</span></td>
+        <td class="actions"></td>
+      `;
+
+      // Faculty (including "00 TBA TBA") set as textContent to avoid any parsing
+      const facCell = tr.children[3];
+      facCell.textContent = sec.faculty || '';
+
+      const actions = tr.querySelector('.actions');
+      const btnAdd = document.createElement('button');
+      btnAdd.className = 'btn';
+      btnAdd.textContent = 'Add to plan';
+      btnAdd.onclick = () => {
+        if (!active) return showToast('Create and select a plan first.');
+        // Enforce: one section per course
+        const existingItems = active.items.map(k => sectionByKey.get(k)).filter(Boolean);
+        if (existingItems.some(x => x.course === sec.course)) {
+          showToast(`You already have a section of ${sec.course} in this plan.`);
+          return;
+        }
+        // Prevent conflicts
+        const conflict = findConflictingWith(existingItems, sec);
+        if (conflict) {
+          showToast(`Cannot add: ${sec.course} Sec-${sec.section} (${sec.timing.label}) conflicts with ${conflict.course} Sec-${conflict.section} (${conflict.timing.label}).`);
+          return;
+        }
+        const k = keyOf(sec);
+        if (!active.items.includes(k)) active.items.push(k);
+        saveAll(); renderAll();
+      };
+      actions.appendChild(btnAdd);
+
+      tbody.appendChild(tr);
+    }
+  }
+
+  function renderScheduleAndPlan() {
+    const sched = $('#schedule');
+    sched.innerHTML = '';
+    // Set height to align exactly: header + slots
+    sched.style.height = (HEADER_OFFSET + SLOTS.length * SLOT_HEIGHT) + 'px';
+
+    const plan = plans.find(p => p.id === activePlanId);
+    const items = (plan?.items || []).map(k => sectionByKey.get(k)).filter(Boolean);
+
+    // Left slot rail with header spacer to align rows
+    const slots = document.createElement('div');
+    slots.className = 'slots';
+    const slotsHeader = document.createElement('div');
+    slotsHeader.className = 'slots-header';
+    slots.appendChild(slotsHeader);
+    for (let i=0;i<SLOTS.length;i++) {
+      const row = document.createElement('div');
+      row.className = 'slot';
+      row.style.top = `${HEADER_OFFSET + i*SLOT_HEIGHT}px`;
+      row.style.height = `${SLOT_HEIGHT}px`;
+      row.textContent = SLOTS[i].label;
+      slots.appendChild(row);
+    }
+    sched.appendChild(slots);
+
+    // Day columns (A,S,M,T,W,R)
+    const days = document.createElement('div');
+    days.className = 'days';
+    for (let d = 0; d < DAY_KEYS.length; d++) {
+      const col = document.createElement('div');
+      col.className = 'day-col';
+      const header = document.createElement('div');
+      header.className = 'day-header';
+      const dk = DAY_KEYS[d];
+      header.innerHTML = `<strong>${DAY_NAME_MAP[dk]}</strong>`;
+      col.appendChild(header);
+      // slot gridlines per column, aligned below header
+      for (let i=0;i<SLOTS.length;i++) {
+        const line = document.createElement('div');
+        line.style.position = 'absolute';
+        line.style.left = '0'; line.style.right = '0';
+        line.style.top = `${HEADER_OFFSET + i*SLOT_HEIGHT}px`;
+        line.style.borderTop = '1px dashed var(--grid-line)';
+        col.appendChild(line);
+      }
+      days.appendChild(col);
+    }
+    sched.appendChild(days);
+
+    // Place blocks exactly into slots
+    for (const sec of items) {
+      const idx = slotIndexFor(sec.timing.start, sec.timing.end);
+      const top = (idx >= 0 ? HEADER_OFFSET + idx * SLOT_HEIGHT + 6 : HEADER_OFFSET + 6);
+      const height = (idx >= 0 ? SLOT_HEIGHT - 12 : SLOT_HEIGHT - 12);
+      for (const d of sec.timing.days) {
+        const dayIdx = DAY_MAP[d];
+        const block = document.createElement('div');
+        block.className = 'block';
+        block.style.top = `${top}px`;
+        block.style.height = `${height}px`;
+        block.innerHTML = `
+          <div><strong>${sec.course}</strong> Sec ${sec.section}</div>
+          <div class="small">${sec.timing.label} • ${sec.title || ''}</div>
+          <div class="small"></div>
+        `;
+        // Faculty text (including "00 TBA TBA") as plain text
+        block.querySelector('.small:last-child').textContent = sec.faculty || '';
+        const dayCol = days.children[dayIdx];
+        block.style.left = '6px';
+        block.style.right = '6px';
+        dayCol.appendChild(block);
+      }
+    }
+
+    // Plan list
+    const list = $('#planList');
+    list.innerHTML = '';
+    for (const sec of items) {
+      const div = document.createElement('div');
+      div.className = 'item';
+      div.innerHTML = `
+        <div class="wrap">
+          <strong>${sec.course}</strong> Sec ${sec.section}
+          <span class="tag">${sec.timing.label}</span>
+          <div class="small">${sec.title}</div>
+          <div class="small"></div>
+        </div>
+      `;
+      div.querySelector('.small:last-child').textContent = sec.faculty || '';
+      const r = document.createElement('div');
+      const btn = document.createElement('button');
+      btn.className = 'btn danger';
+      btn.textContent = 'Remove';
+      btn.onclick = () => {
+        const k = keyOf(sec);
+        plan.items = plan.items.filter(x => x !== k);
+        saveAll(); renderAll();
+      };
+      r.appendChild(btn);
+      div.appendChild(r);
+      list.appendChild(div);
+    }
+  }
+
+  function renderFilters() {
+    // Days select (no Friday)
+    const sel = $('#filterDay');
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">All days</option>' +
+      DAY_KEYS.map(k => `<option value="${k}">${k} (${DAY_NAME_MAP[k]})</option>`).join('');
+    if ([...sel.options].some(o => o.value === prev)) sel.value = prev;
+  }
+
+  function renderAll() {
+    renderPlans();
+    renderFilters();
+    renderCourseTable();
+    renderScheduleAndPlan();
+  }
+
+  // ---------- Events ----------
+  $('#btnQuickAddPlan').onclick = () => {
+    const id = 'p_' + Math.random().toString(36).slice(2);
+    plans.push({ id, name: `Plan ${String.fromCharCode(65 + plans.length)}`, items: [] });
+    activePlanId = id;
+    saveAll(); renderAll();
+    showToast('New plan created.');
+  };
+
+  $('#btnAddPlan').onclick = () => {
+    const base = ($('#newPlanName').value || '').trim();
+    const name = base || `Plan ${String.fromCharCode(65 + plans.length)}`;
+    const id = 'p_' + Math.random().toString(36).slice(2);
+    plans.push({ id, name, items: [] });
+    activePlanId = id;
+    $('#newPlanName').value = '';
+    saveAll(); renderAll();
+  };
+
+  $('#btnRenamePlan').onclick = () => {
+    const p = plans.find(x => x.id === activePlanId);
+    if (!p) return showToast('No active plan.');
+    const name = prompt('New name:', p.name);
+    if (!name) return;
+    p.name = name;
+    saveAll(); renderAll();
+  };
+
+  $('#btnDuplicatePlan').onclick = () => {
+    const p = plans.find(x => x.id === activePlanId);
+    if (!p) return showToast('No active plan.');
+    const id = 'p_' + Math.random().toString(36).slice(2);
+    plans.push({ id, name: p.name + ' (copy)', items: [...p.items] });
+    activePlanId = id;
+    saveAll(); renderAll();
+  };
+
+  $('#btnDeletePlan').onclick = () => {
+    const idx = plans.findIndex(x => x.id === activePlanId);
+    if (idx < 0) return showToast('No active plan.');
+    const ok = confirm(`Delete ${plans[idx].name}?`);
+    if (!ok) return;
+    plans.splice(idx, 1);
+    activePlanId = plans[0]?.id || null;
+    saveAll(); renderAll();
+  };
+
+  $('#btnClearActive').onclick = () => {
+    const p = plans.find(x => x.id === activePlanId);
+    if (!p) return;
+    p.items = [];
+    saveAll(); renderAll();
+  };
+
+  $('#search').oninput = () => renderCourseTable();
+  $('#filterDay').onchange = () => renderCourseTable();
+  $('#filterAvail').onchange = () => renderCourseTable();
+
+  // ---------- Init ----------
+  loadAll();
+  loadSectionsFromBackend().then(renderAll);
+</script>
+</body>
+</html>
