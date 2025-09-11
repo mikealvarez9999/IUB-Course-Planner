@@ -246,14 +246,20 @@ html[data-theme="light"] #toast { color:#0f172a; background:#f8fafc; border-colo
   header.compact .theme-switch { width: 48px; height: 26px; } /* shrink toggle */
   header.compact .theme-switch .ts-knob { top: 2px; left: 2px; width: 22px; height: 22px; }
   html[data-theme="light"] header.compact .theme-switch .ts-knob { transform: translateX(24px); }
-  /* Keep the +20px visual breathing room and enforce a sensible min width */
-  .table th:nth-child(3),
-  .table td:nth-child(3) {
-    padding-right: calc(8px + 20px);
-    min-width: 12.5ch; /* fits strings like 'MW: 1120-1250' on one line */
-  }
-  /* Ensure the time chip never wraps even around hyphens */
+  /* Fixed-ish widths for compact columns */
+  .table col.col-course  { width: 9ch; }   /* e.g., ANT101 */
+  .table col.col-sec     { width: 4ch; }   /* small number */
+  .table col.col-time    { width: 16ch; }  /* ensure single-line 'MW: 1120-1250' */
+  .table col.col-seats   { width: 8ch; }   /* '35/35' aligned right */
+  .table col.col-actions { width: 12ch; }  /* 'Add to plan' button */
+
+  /* Faculty and Title are flexible (no fixed width), let them wrap */
+  .table td:nth-child(4),
+  .table td:nth-child(5) { word-break: break-word; }
+
+  /* Never wrap the time chip; allow it to expand the column as needed */
   .table td:nth-child(3) .tag {
+    display: inline-block;
     white-space: nowrap;
   }
   .container { grid-template-columns: 1fr; }
