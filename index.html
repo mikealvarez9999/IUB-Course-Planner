@@ -158,7 +158,7 @@
         <!-- Desktop schedule grid -->
         <div class="schedule desktop" id="schedule"></div>
 
-        <!-- Mobile schedule list (CSS controls visibility; no inline display:none) -->
+        <!-- Mobile schedule list -->
         <div class="m-schedule" id="mSchedule"></div>
 
         <div style="margin-top:12px;">
@@ -183,7 +183,6 @@
   // Current storage key + legacy keys for migration
   const STORAGE_PLANS = 'iub-plans-v7';
   const LEGACY_PLAN_KEYS = ['iub-plans-v7','iub-plans-v6','iub-plans-v5','iub-plans-v4'];
-
   const STORAGE_THEME = 'iub-theme';
 
   // Time slots
@@ -247,25 +246,68 @@
     let foundKey = null;
     for (const k of LEGACY_PLAN_KEYS) {
       const maybe = readPlansKey(k);
-      if (maybe && maybe.plans && maybe.plans.length >= 0) { // allow empty plan lists too
-        found = maybe; foundKey = k; break;
-      }
+      if (maybe && maybe.plans) { found = maybe; foundKey = k; break; }
     }
     if (found) {
       plans = Array.isArray(found.plans) ? found.plans : [];
       activePlanId = found.activePlanId || plans[0]?.id || null;
-      // Save under current key if we loaded from an older one
-      if (foundKey !== STORAGE_PLANS) {
-        saveAll();
-      }
+      if (foundKey !== STORAGE_PLANS) saveAll();
     }
-    // If still nothing, seed with Plan A
     if (!Array.isArray(plans) || plans.length === 0) {
       const id = 'p_' + Math.random().toString(36).slice(2);
       plans = [{ id, name: 'Plan A', items: [] }];
       activePlanId = id;
       saveAll();
     }
+  }
+
+  // Fallback resolver: map old saved keys to current sections (course/section/faculty/time)
+  function resolveSectionFromKey(k) {
+    const parts = (k||'').split('|');
+    const course = parts[0] || '';
+    const sectionNum = parseInt(parts[1] || '0', 10);
+    const label = parts[2] || '';
+    const faculty = (parts[3] || '').trim();
+
+    let candidates = sections.filter(s => s.course === course && s.section === sectionNum);
+    if (faculty) candidates = candidates.filter(s => (s.faculty||'').trim() === faculty);
+
+    if (candidates.length > 1 && label) {
+      const m = label.match(/(\d{2}):?(\d{2})-(\d{2}):?(\d{2})/);
+      if (m) {
+        const start = parseInt(m[1],10)*60 + parseInt(m[2],10);
+        const end   = parseInt(m[3],10)*60 + parseInt(m[4],10);
+        const byTime = candidates.find(s => s.timing.start === start && s.timing.end === end);
+        if (byTime) return byTime;
+      }
+    }
+    return candidates[0] || null;
+  }
+
+  // Return resolved items for the active plan (backward compatible)
+  function resolvePlanItems(plan) {
+    const out = [];
+    for (const k of (plan?.items || [])) {
+      const exact = sectionByKey.get(k);
+      if (exact) { out.push(exact); continue; }
+      const fallback = resolveSectionFromKey(k);
+      if (fallback) out.push(fallback);
+    }
+    return out;
+  }
+
+  // One-time migration: rewrite old keys to canonical keys so future loads are exact
+  function migratePlanKeys() {
+    let changed = false;
+    for (const p of plans) {
+      const items = resolvePlanItems(p);
+      const newKeys = Array.from(new Set(items.map(keyOf)));
+      if (newKeys.length !== p.items.length || newKeys.some((v,i)=>v!==p.items[i])) {
+        p.items = newKeys;
+        changed = true;
+      }
+    }
+    if (changed) saveAll();
   }
 
   function updateThemeColorMeta(theme) {
@@ -336,7 +378,12 @@
           cat: row.cat || ''
         };
       }).filter(Boolean);
-      reindex(); errorBox.style.display = 'none';
+      reindex();
+
+      // After we know all sections, migrate any legacy keys once
+      migratePlanKeys();
+
+      errorBox.style.display = 'none';
     } catch (e) {
       sections = []; reindex();
       errorBox.textContent = 'Failed to load courses. Please try again later.';
@@ -446,7 +493,7 @@
 
   function tryAddToPlan(sec, active) {
     if (!active) return showToast('Create and select a plan first.');
-    const existingItems = active.items.map(k => sectionByKey.get(k)).filter(Boolean);
+    const existingItems = resolvePlanItems(active); // use resolved items
     if (existingItems.some(x => x.course === sec.course)) {
       showToast(`You can't choose two sections of the same course (${sec.course}). Remove the other section first.`);
       return;
@@ -466,15 +513,17 @@
     const sched = $('#schedule');
     const mSched = $('#mSchedule');
     const plan = plans.find(p => p.id === activePlanId);
-    const items = (plan?.items || []).map(k => sectionByKey.get(k)).filter(Boolean);
+    const items = resolvePlanItems(plan);
 
     if (!isMobile) {
       $('#dayTabs').style.display = 'none';
       mSched.style.display = 'none';
       sched.style.display = 'block';
       sched.innerHTML = '';
+
       sched.style.height = (HEADER_OFFSET + SLOTS.length * SLOT_HEIGHT) + 'px';
 
+      // Left slot rail with header spacer
       const slots = document.createElement('div');
       slots.className = 'slots';
       const slotsHeader = document.createElement('div');
@@ -490,6 +539,7 @@
       }
       sched.appendChild(slots);
 
+      // Day columns (A,S,M,T,W,R)
       const days = document.createElement('div');
       days.className = 'days';
       for (let d = 0; d < DAY_KEYS.length; d++) {
@@ -512,6 +562,7 @@
       }
       sched.appendChild(days);
 
+      // Blocks
       for (const sec of items) {
         const idx = slotIndexFor(sec.timing.start, sec.timing.end);
         const top = (idx >= 0 ? HEADER_OFFSET + idx * SLOT_HEIGHT + 6 : HEADER_OFFSET + 6);
@@ -535,6 +586,7 @@
         }
       }
     } else {
+      // Mobile per-day view
       $('#dayTabs').style.display = 'flex';
       sched.style.display = 'none';
       mSched.style.display = 'block';
@@ -542,6 +594,7 @@
 
       if (!DAY_KEYS.includes(activeMobileDay)) activeMobileDay = DAY_KEYS[0];
 
+      // Day tabs
       const tabs = $('#dayTabs');
       tabs.innerHTML = '';
       for (const dk of DAY_KEYS) {
@@ -552,6 +605,7 @@
         tabs.appendChild(tab);
       }
 
+      // Build per-slot list for the selected day
       for (let i=0; i<SLOTS.length; i++) {
         const slot = SLOTS[i];
         const row = document.createElement('div');
@@ -593,7 +647,7 @@
 
   function renderPlanList() {
     const plan = plans.find(p => p.id === activePlanId);
-    const items = (plan?.items || []).map(k => sectionByKey.get(k)).filter(Boolean);
+    const items = resolvePlanItems(plan);
     const list = $('#planList');
     list.innerHTML = '';
     for (const sec of items) {
@@ -613,8 +667,13 @@
       btn.className = 'btn danger';
       btn.textContent = 'Remove';
       btn.onclick = () => {
-        const k = keyOf(sec);
-        plan.items = plan.items.filter(x => x !== k);
+        // Remove by either exact key or by course+section (legacy entries)
+        const exactKey = keyOf(sec);
+        plan.items = plan.items.filter(x => {
+          if (x === exactKey) return false;
+          const [c,s] = (x||'').split('|');
+          return !(c === sec.course && parseInt(s||'0',10) === sec.section);
+        });
         saveAll(); renderAll();
       };
       r.appendChild(btn);
@@ -675,7 +734,6 @@
       navigator.serviceWorker.register('service-worker.js')
         .then(reg => { reg.update?.(); })
         .catch(err => console.warn('SW registration failed', err));
-      // Auto-reload when a new SW takes control
       let refreshing = false;
       navigator.serviceWorker.addEventListener('controllerchange', () => {
         if (refreshing) return; refreshing = true; window.location.reload();
