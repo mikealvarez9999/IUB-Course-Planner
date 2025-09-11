@@ -16,10 +16,12 @@
       --grid-line: #1f2937;
       --chip: #273041;
       --toast-bg: #1f2937;
+      --overlay: rgba(0,0,0,0.45);
     }
     * { box-sizing: border-box; }
     body {
-      margin: 0; color: var(--text); background: linear-gradient(180deg, #0b0f14 0%, #0e131a 100%);
+      margin: 0; color: var(--text);
+      background: linear-gradient(180deg, #0b0f14 0%, #0e131a 100%);
       font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji";
     }
     header {
@@ -29,19 +31,21 @@
     header h1 { font-size: 18px; margin: 0; letter-spacing: 0.2px; }
     header .sub { color: var(--muted); font-size: 12px; margin-left: 8px; }
 
-    /* Bigger plan panel on the right */
-    .container { display: grid; grid-template-columns: 1fr 600px; gap: 16px; padding: 16px; }
+    /* Desktop: wider plan panel on the right */
+    .container {
+      display: grid; grid-template-columns: 1fr 600px; gap: 16px; padding: 16px;
+    }
     .panel { background: var(--panel); border: 1px solid #1a2230; border-radius: 10px; }
     .panel h2 { margin: 0 0 8px 0; font-size: 14px; color: #b8c5d6; letter-spacing: 0.2px; }
     .panel .body { padding: 12px; }
     .row { display:flex; gap: 8px; align-items:center; flex-wrap:wrap; }
     input[type="text"], select {
-      width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid #263044; background: #0f1520; color: var(--text);
+      width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #263044; background: #0f1520; color: var(--text);
       outline: none; font-size: 14px;
     }
     .btn {
-      appearance: none; border: 1px solid #263044; color: var(--text); background: #122034; padding: 8px 10px; border-radius: 8px;
-      font-size: 13px; cursor: pointer;
+      appearance: none; border: 1px solid #263044; color: var(--text); background: #122034; padding: 10px 12px; border-radius: 10px;
+      font-size: 14px; cursor: pointer; min-height: 40px;
     }
     .btn:hover { filter: brightness(1.1); }
     .btn.accent { background: linear-gradient(135deg, #2a6fbe, #49a6e9); border-color: transparent; }
@@ -50,28 +54,41 @@
 
     .plans { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
     .plan {
-      padding: 6px 12px; border-radius: 999px; border: 1px solid #2a3347; background: #101827; cursor:pointer; font-size: 12px;
-      color: #cfe6ff;
+      padding: 8px 14px; border-radius: 999px; border: 1px solid #2a3347; background: #101827; cursor:pointer; font-size: 13px;
+      color: #cfe6ff; min-height: 40px;
     }
     .plan.active { border-color: #3b82f6; box-shadow: inset 0 0 0 1px #3b82f6; color: #ffffff; }
-    .plan.badge { background:#172036; color:#cfe6ff; }
     .plan.new { background:#18314f; border-color:#264b7b; }
 
     .courses .toolbar { display:flex; gap:8px; align-items:center; margin-bottom: 8px; }
-    .courses .table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .courses th, .courses td { border-bottom: 1px solid #1a2230; padding: 8px; vertical-align: top; }
-    .courses th { color: #93a6bf; text-align: left; position: sticky; top: 0; background: #101722; z-index: 1; }
     .tag { font-size: 11px; color: #cbd5e1; background: #243044; padding: 2px 6px; border-radius: 6px; border: 1px solid #2b3a55; }
     .avail.ok { color: var(--ok); }
     .avail.full { color: var(--danger); }
-    .actions { display:flex; gap:6px; }
-    .small { font-size: 12px; color: var(--muted); }
+    .small { font-size: 12px; color: #7a8596; }
     .right { text-align: right; }
     .nowrap { white-space: nowrap; }
     .wrap { word-break: break-word; }
     .footnote { color: #9cb0c8; font-size: 12px; margin-top: 8px; }
 
-    /* Schedule with discrete slots aligned under day headers (no Friday) */
+    /* Desktop table */
+    .table-wrap { max-height: 700px; overflow: auto; border:1px solid #1a2230; border-radius:8px; }
+    .table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .table th, .table td { border-bottom: 1px solid #1a2230; padding: 8px; vertical-align: top; }
+    .table th { color: #93a6bf; text-align: left; position: sticky; top: 0; background: #101722; z-index: 1; }
+    .actions { display:flex; gap:6px; }
+
+    /* Mobile course cards */
+    .cards { display: none; gap: 10px; }
+    .card {
+      border: 1px solid #1a2230; border-radius: 10px; background: #0f1520; padding: 10px; display: grid; gap: 6px;
+    }
+    .card-top { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+    .card-title { font-weight: 700; }
+    .card-sub { color:#b8c5d6; font-size: 12px; }
+    .card-meta { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .card-actions { display:flex; gap:8px; }
+
+    /* Schedule (desktop): discrete slots aligned under day headers (no Friday) */
     .schedule {
       position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #1a2230; background: #0f1520;
     }
@@ -120,38 +137,102 @@
     }
     #toast.show { opacity: 1; transform: translateY(0); }
 
-    @media (max-width: 1100px) {
-      .container { grid-template-columns: 1fr; }
+    /* Mobile-only additions */
+    .mobile-only { display: none; }
+    .day-tabs { display:none; gap:6px; flex-wrap:nowrap; overflow:auto; padding-bottom: 6px; margin-top: -4px; }
+    .day-tab {
+      padding: 6px 10px; border-radius: 999px; border:1px solid #2a3347; background:#101827; color:#cfe6ff; white-space: nowrap;
+      scroll-snap-align: start;
     }
+    .day-tab.active { border-color:#3b82f6; color:#fff; }
+
+    /* Filters bottom sheet on mobile */
+    #filtersBackdrop {
+      display:none; position: fixed; inset: 0; background: var(--overlay); z-index: 40;
+    }
+    .filtersWrap { display:flex; gap:8px; align-items:center; }
+    @media (max-width: 768px) {
+      .container { grid-template-columns: 1fr; }
+      #planPanel { order: 1; }
+      #coursesPanel { order: 2; }
+
+      /* Plans: horizontal scroll with snap */
+      .plans {
+        overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px;
+        scroll-snap-type: x mandatory;
+      }
+      .plan { scroll-snap-align: start; }
+
+      /* Show Filters button; convert filters into a sheet */
+      #btnToggleFilters { display: inline-block; }
+      .filtersWrap {
+        display: none; /* hidden until opened as sheet */
+        position: fixed; left:0; right:0; bottom:0; z-index: 50; background:#0f1520;
+        border-top: 1px solid #1a2230; padding: 12px; box-shadow: 0 -12px 28px rgba(0,0,0,0.5);
+        border-top-left-radius: 12px; border-top-right-radius: 12px;
+        flex-direction: column; gap:10px;
+      }
+      .filtersWrap.open { display:flex; }
+      #filtersBackdrop.show { display:block; }
+
+      /* Courses: hide table, show cards */
+      .table-wrap { display: none; }
+      .cards { display: grid; grid-template-columns: 1fr; }
+
+      /* Day tabs + mobile schedule */
+      .day-tabs { display:flex; }
+      .schedule.desktop { display:none; }
+      .m-schedule { display:block; border:1px solid #1a2230; border-radius: 10px; overflow:hidden; background:#0f1520; }
+      .m-slot {
+        border-top: 1px dashed var(--grid-line); padding: 10px;
+      }
+      .m-slot:first-child { border-top: none; }
+      .m-slot-label { font-size: 12px; color:#9cb0c8; margin-bottom: 6px; }
+      .m-block {
+        border: 1px solid #31527b; border-radius: 8px; padding: 8px; background: linear-gradient(180deg, rgba(49, 115, 190, 0.35), rgba(36, 65, 109, 0.35));
+      }
+    }
+
+    /* Desktop-only */
+    #btnToggleFilters { display: none; }
   </style>
 </head>
 <body>
   <header>
     <h1>IUB Course Planner</h1>
-    <div class="sub">created with curiosity by Raiyan Bin Rais</div>
+    <div class="sub">Read-only course list from backend • Plans saved locally</div>
   </header>
 
   <div class="container">
     <!-- Left: courses -->
-    <div class="panel courses">
+    <div class="panel courses" id="coursesPanel">
       <div class="body">
         <h2>Courses</h2>
+        <!-- Top row: search + mobile Filters button -->
         <div class="toolbar">
           <input type="text" id="search" placeholder="Search course code/title/faculty" />
-          <select id="filterDay">
+          <button class="btn" id="btnToggleFilters" aria-expanded="false" aria-controls="filtersWrap">Filters</button>
+        </div>
+
+        <!-- Filters row (desktop inline; mobile bottom sheet) -->
+        <div id="filtersBackdrop" aria-hidden="true"></div>
+        <div class="filtersWrap" id="filtersWrap">
+          <select id="filterDay" aria-label="Filter by day">
             <option value="">All days</option>
           </select>
-          <select id="filterAvail">
+          <select id="filterAvail" aria-label="Filter by availability">
             <option value="">Any availability</option>
             <option value="open">Open seats</option>
             <option value="full">Full</option>
           </select>
+          <button class="btn alt mobile-only" id="btnCloseFilters">Done</button>
         </div>
 
         <div id="courseError" class="footnote" style="display:none; color:#ffb4b4;"></div>
 
-        <div style="max-height: 700px; overflow: auto; border:1px solid #1a2230; border-radius:8px;">
-          <table class="table" id="courseTable">
+        <!-- Desktop: table -->
+        <div class="table-wrap" id="tableWrap">
+          <table class="table" id="courseTable" role="table" aria-label="Courses">
             <thead>
               <tr>
                 <th>Course</th>
@@ -168,12 +249,16 @@
             </tbody>
           </table>
         </div>
-        <div class="footnote">\nCourse list is updated by me. Your plans are saved locally in your browser tho (don't clear the cache).</div>
+
+        <!-- Mobile: cards -->
+        <div class="cards" id="courseCards" aria-live="polite"></div>
+
+        <div class="footnote">Dataset is managed by admins and cannot be modified by users.</div>
       </div>
     </div>
 
     <!-- Right: plans + schedule -->
-    <div class="panel">
+    <div class="panel" id="planPanel">
       <div class="body">
         <h2>Plans</h2>
         <div class="row" style="margin-bottom:8px">
@@ -201,7 +286,14 @@
 
         <div class="plan-title" id="planTitle">Plan A</div>
 
-        <div class="schedule" id="schedule"></div>
+        <!-- Mobile day tabs -->
+        <div class="day-tabs" id="dayTabs" aria-label="Select day"></div>
+
+        <!-- Desktop schedule grid -->
+        <div class="schedule desktop" id="schedule"></div>
+
+        <!-- Mobile schedule list -->
+        <div class="m-schedule" id="mSchedule" style="display:none;"></div>
 
         <div style="margin-top:12px;">
           <div class="row" style="justify-content: space-between;">
@@ -233,14 +325,17 @@
     { start: 14*60+40,    end: 16*60+10, label: '14:40-16:10' },
     { start: 16*60+20,    end: 17*60+50, label: '16:20-17:50' },
   ];
-  const SLOT_HEIGHT = 100; // px per slot
-  const HEADER_OFFSET = 24; // px sticky day header height
+  const SLOT_HEIGHT = 100; // px per slot (desktop grid)
+  const HEADER_OFFSET = 24; // px sticky day header height (desktop grid)
 
   // ---------- State ----------
   let sections = []; // read-only list from backend (JSON)
   let plans = [];    // [{id,name,items:[sectionKey]}]
   let activePlanId = null;
   const sectionByKey = new Map();
+  let activeMobileDay = 'S'; // default day for mobile schedule
+  const mql = window.matchMedia('(max-width: 768px)');
+  let isMobile = mql.matches;
 
   // ---------- Utilities ----------
   const $ = sel => document.querySelector(sel);
@@ -260,7 +355,6 @@
     return { days: dayCodes, start, end, label: `${m[1]}: ${m[2]}-${m[3]}` };
   }
   function keyOf(sec) {
-    // include faculty literally (supports "00 TBA TBA")
     return `${sec.course}|${sec.section}|${sec.timing.label}|${(sec.faculty||'').trim()}`;
   }
   function saveAll() {
@@ -289,11 +383,9 @@
   }
   function findConflictingWith(items, candidate) {
     for (const s of items) {
-      // day overlap?
       const daySet = new Set(s.timing.days);
       const anyDay = candidate.timing.days.some(d => daySet.has(d));
       if (!anyDay) continue;
-      // time overlap?
       if (overlaps({start:s.timing.start, end:s.timing.end}, {start:candidate.timing.start, end:candidate.timing.end})) {
         return s;
       }
@@ -309,7 +401,7 @@
     t.textContent = msg;
     t.classList.add('show');
     clearTimeout(showToast._timer);
-    showToast._timer = setTimeout(()=>t.classList.remove('show'), 3000);
+    showToast._timer = setTimeout(()=>t.classList.remove('show'), 2800);
   }
   function slotIndexFor(start, end) {
     for (let i=0;i<SLOTS.length;i++) {
@@ -348,7 +440,7 @@
       reindex();
       errorBox.textContent = 'Failed to load courses. Please try again later.';
       errorBox.style.display = 'block';
-      tbody.innerHTML = '<tr><td colspan="7" class="small">No courses available.</td></tr>';
+      if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="small">No courses available.</td></tr>';
     }
   }
 
@@ -367,14 +459,11 @@
     $('#planTitle').textContent = plan ? plan.name : '—';
   }
 
-  function renderCourseTable() {
-    const tbody = $('#courseTbody');
+  function filteredSections() {
     const q = ($('#search').value || '').toLowerCase();
     const dayFilter = $('#filterDay').value || '';
     const availFilter = $('#filterAvail').value || '';
-
-    const filtered = sections.filter(sec => {
-      // Search includes faculty (e.g., "00 TBA TBA")
+    return sections.filter(sec => {
       const hay = `${sec.course} ${sec.title} ${sec.faculty}`.toLowerCase();
       if (q && !hay.includes(q)) return false;
       if (dayFilter) {
@@ -387,130 +476,238 @@
       }
       return true;
     });
+  }
 
-    const active = plans.find(p => p.id === activePlanId);
-    tbody.innerHTML = '';
-    for (const sec of filtered) {
-      const tr = document.createElement('tr');
-      const { open, full } = seatStatus(sec);
+  function renderCourseTableOrCards() {
+    const list = filteredSections();
+    const tbody = $('#courseTbody');
+    const cards = $('#courseCards');
 
-      tr.innerHTML = `
-        <td class="nowrap"><strong>${sec.course}</strong></td>
-        <td>${sec.section}</td>
-        <td><span class="tag">${sec.timing.label}</span></td>
-        <td class="wrap"></td>
-        <td class="wrap">${sec.title || ''}</td>
-        <td class="right"><span class="avail ${full ? 'full' : 'ok'}">${open}/${sec.capacity}</span></td>
-        <td class="actions"></td>
-      `;
+    if (!isMobile) {
+      // Desktop: table
+      $('#tableWrap').style.display = '';
+      cards.style.display = 'none';
+      tbody.innerHTML = '';
+      const active = plans.find(p => p.id === activePlanId);
 
-      // Faculty (including "00 TBA TBA") set as textContent to avoid any parsing
-      const facCell = tr.children[3];
-      facCell.textContent = sec.faculty || '';
+      for (const sec of list) {
+        const tr = document.createElement('tr');
+        const { open, full } = seatStatus(sec);
 
-      const actions = tr.querySelector('.actions');
-      const btnAdd = document.createElement('button');
-      btnAdd.className = 'btn';
-      btnAdd.textContent = 'Add to plan';
-      btnAdd.onclick = () => {
-        if (!active) return showToast('Create and select a plan first.');
-        // Enforce: one section per course
-        const existingItems = active.items.map(k => sectionByKey.get(k)).filter(Boolean);
-        if (existingItems.some(x => x.course === sec.course)) {
-          showToast(`You already have a section of ${sec.course} in this plan.`);
-          return;
-        }
-        // Prevent conflicts
-        const conflict = findConflictingWith(existingItems, sec);
-        if (conflict) {
-          showToast(`Cannot add: ${sec.course} Sec-${sec.section} (${sec.timing.label}) conflicts with ${conflict.course} Sec-${conflict.section} (${conflict.timing.label}).`);
-          return;
-        }
-        const k = keyOf(sec);
-        if (!active.items.includes(k)) active.items.push(k);
-        saveAll(); renderAll();
-      };
-      actions.appendChild(btnAdd);
+        tr.innerHTML = `
+          <td class="nowrap"><strong>${sec.course}</strong></td>
+          <td>${sec.section}</td>
+          <td><span class="tag">${sec.timing.label}</span></td>
+          <td class="wrap"></td>
+          <td class="wrap">${sec.title || ''}</td>
+          <td class="right"><span class="avail ${full ? 'full' : 'ok'}">${open}/${sec.capacity}</span></td>
+          <td class="actions"></td>
+        `;
+        // Faculty text
+        tr.children[3].textContent = sec.faculty || '';
 
-      tbody.appendChild(tr);
+        const actions = tr.querySelector('.actions');
+        const btnAdd = document.createElement('button');
+        btnAdd.className = 'btn';
+        btnAdd.textContent = 'Add to plan';
+        btnAdd.onclick = () => tryAddToPlan(sec, active);
+        actions.appendChild(btnAdd);
+
+        tbody.appendChild(tr);
+      }
+    } else {
+      // Mobile: cards
+      $('#tableWrap').style.display = 'none';
+      cards.style.display = 'grid';
+      cards.innerHTML = '';
+      const active = plans.find(p => p.id === activePlanId);
+
+      for (const sec of list) {
+        const { open, full } = seatStatus(sec);
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <div class="card-top">
+            <div class="card-title">${sec.course} • Sec ${sec.section}</div>
+            <div class="tag">${sec.timing.label}</div>
+          </div>
+          <div class="card-sub">${sec.title || ''}</div>
+          <div class="card-meta">
+            <span class="small"><strong>Faculty:</strong> <span class="fac"></span></span>
+            <span class="small"><strong>Seats:</strong> <span class="${full ? 'avail full' : 'avail ok'}">${open}/${sec.capacity}</span></span>
+          </div>
+          <div class="card-actions">
+            <button class="btn">Add to plan</button>
+          </div>
+        `;
+        card.querySelector('.fac').textContent = sec.faculty || '';
+        card.querySelector('.btn').onclick = () => tryAddToPlan(sec, active);
+        cards.appendChild(card);
+      }
     }
   }
 
-  function renderScheduleAndPlan() {
-    const sched = $('#schedule');
-    sched.innerHTML = '';
-    // Set height to align exactly: header + slots
-    sched.style.height = (HEADER_OFFSET + SLOTS.length * SLOT_HEIGHT) + 'px';
+  function tryAddToPlan(sec, active) {
+    if (!active) return showToast('Create and select a plan first.');
+    const existingItems = active.items.map(k => sectionByKey.get(k)).filter(Boolean);
+    // One section per course
+    if (existingItems.some(x => x.course === sec.course)) {
+      showToast(`You already have a section of ${sec.course} in this plan.`);
+      return;
+    }
+    // Prevent conflicts
+    const conflict = findConflictingWith(existingItems, sec);
+    if (conflict) {
+      showToast(`Cannot add: ${sec.course} Sec-${sec.section} (${sec.timing.label}) conflicts with ${conflict.course} Sec-${conflict.section} (${conflict.timing.label}).`);
+      return;
+    }
+    const k = keyOf(sec);
+    if (!active.items.includes(k)) active.items.push(k);
+    saveAll(); renderAll();
+  }
 
+  function renderSchedule() {
+    const sched = $('#schedule');
+    const mSched = $('#mSchedule');
     const plan = plans.find(p => p.id === activePlanId);
     const items = (plan?.items || []).map(k => sectionByKey.get(k)).filter(Boolean);
 
-    // Left slot rail with header spacer to align rows
-    const slots = document.createElement('div');
-    slots.className = 'slots';
-    const slotsHeader = document.createElement('div');
-    slotsHeader.className = 'slots-header';
-    slots.appendChild(slotsHeader);
-    for (let i=0;i<SLOTS.length;i++) {
-      const row = document.createElement('div');
-      row.className = 'slot';
-      row.style.top = `${HEADER_OFFSET + i*SLOT_HEIGHT}px`;
-      row.style.height = `${SLOT_HEIGHT}px`;
-      row.textContent = SLOTS[i].label;
-      slots.appendChild(row);
-    }
-    sched.appendChild(slots);
+    if (!isMobile) {
+      // Desktop grid
+      $('#dayTabs').style.display = 'none';
+      mSched.style.display = 'none';
+      sched.style.display = 'block';
+      sched.innerHTML = '';
 
-    // Day columns (A,S,M,T,W,R)
-    const days = document.createElement('div');
-    days.className = 'days';
-    for (let d = 0; d < DAY_KEYS.length; d++) {
-      const col = document.createElement('div');
-      col.className = 'day-col';
-      const header = document.createElement('div');
-      header.className = 'day-header';
-      const dk = DAY_KEYS[d];
-      header.innerHTML = `<strong>${DAY_NAME_MAP[dk]}</strong>`;
-      col.appendChild(header);
-      // slot gridlines per column, aligned below header
+      sched.style.height = (HEADER_OFFSET + SLOTS.length * SLOT_HEIGHT) + 'px';
+
+      // Left slot rail with header spacer
+      const slots = document.createElement('div');
+      slots.className = 'slots';
+      const slotsHeader = document.createElement('div');
+      slotsHeader.className = 'slots-header';
+      slots.appendChild(slotsHeader);
       for (let i=0;i<SLOTS.length;i++) {
-        const line = document.createElement('div');
-        line.style.position = 'absolute';
-        line.style.left = '0'; line.style.right = '0';
-        line.style.top = `${HEADER_OFFSET + i*SLOT_HEIGHT}px`;
-        line.style.borderTop = '1px dashed var(--grid-line)';
-        col.appendChild(line);
+        const row = document.createElement('div');
+        row.className = 'slot';
+        row.style.top = `${HEADER_OFFSET + i*SLOT_HEIGHT}px`;
+        row.style.height = `${SLOT_HEIGHT}px`;
+        row.textContent = SLOTS[i].label;
+        slots.appendChild(row);
       }
-      days.appendChild(col);
-    }
-    sched.appendChild(days);
+      sched.appendChild(slots);
 
-    // Place blocks exactly into slots
-    for (const sec of items) {
-      const idx = slotIndexFor(sec.timing.start, sec.timing.end);
-      const top = (idx >= 0 ? HEADER_OFFSET + idx * SLOT_HEIGHT + 6 : HEADER_OFFSET + 6);
-      const height = (idx >= 0 ? SLOT_HEIGHT - 12 : SLOT_HEIGHT - 12);
-      for (const d of sec.timing.days) {
-        const dayIdx = DAY_MAP[d];
-        const block = document.createElement('div');
-        block.className = 'block';
-        block.style.top = `${top}px`;
-        block.style.height = `${height}px`;
-        block.innerHTML = `
-          <div><strong>${sec.course}</strong> Sec ${sec.section}</div>
-          <div class="small">${sec.timing.label} • ${sec.title || ''}</div>
-          <div class="small"></div>
-        `;
-        // Faculty text (including "00 TBA TBA") as plain text
-        block.querySelector('.small:last-child').textContent = sec.faculty || '';
-        const dayCol = days.children[dayIdx];
-        block.style.left = '6px';
-        block.style.right = '6px';
-        dayCol.appendChild(block);
+      // Day columns (A,S,M,T,W,R)
+      const days = document.createElement('div');
+      days.className = 'days';
+      for (let d = 0; d < DAY_KEYS.length; d++) {
+        const col = document.createElement('div');
+        col.className = 'day-col';
+        const header = document.createElement('div');
+        header.className = 'day-header';
+        const dk = DAY_KEYS[d];
+        header.innerHTML = `<strong>${DAY_NAME_MAP[dk]}</strong>`;
+        col.appendChild(header);
+        for (let i=0;i<SLOTS.length;i++) {
+          const line = document.createElement('div');
+          line.style.position = 'absolute';
+          line.style.left = '0'; line.style.right = '0';
+          line.style.top = `${HEADER_OFFSET + i*SLOT_HEIGHT}px`;
+          line.style.borderTop = '1px dashed var(--grid-line)';
+          col.appendChild(line);
+        }
+        days.appendChild(col);
+      }
+      sched.appendChild(days);
+
+      // Blocks
+      for (const sec of items) {
+        const idx = slotIndexFor(sec.timing.start, sec.timing.end);
+        const top = (idx >= 0 ? HEADER_OFFSET + idx * SLOT_HEIGHT + 6 : HEADER_OFFSET + 6);
+        const height = (idx >= 0 ? SLOT_HEIGHT - 12 : SLOT_HEIGHT - 12);
+        for (const d of sec.timing.days) {
+          const dayIdx = DAY_MAP[d];
+          const block = document.createElement('div');
+          block.className = 'block';
+          block.style.top = `${top}px`;
+          block.style.height = `${height}px`;
+          block.innerHTML = `
+            <div><strong>${sec.course}</strong> Sec ${sec.section}</div>
+            <div class="small">${sec.timing.label} • ${sec.title || ''}</div>
+            <div class="small"></div>
+          `;
+          block.querySelector('.small:last-child').textContent = sec.faculty || '';
+          const dayCol = sched.querySelector('.days').children[dayIdx];
+          block.style.left = '6px';
+          block.style.right = '6px';
+          dayCol.appendChild(block);
+        }
+      }
+    } else {
+      // Mobile per-day view
+      $('#dayTabs').style.display = 'flex';
+      sched.style.display = 'none';
+      mSched.style.display = 'block';
+      mSched.innerHTML = '';
+
+      // Ensure active day is valid
+      if (!DAY_KEYS.includes(activeMobileDay)) activeMobileDay = DAY_KEYS[0];
+
+      // Day tabs
+      const tabs = $('#dayTabs');
+      tabs.innerHTML = '';
+      for (const dk of DAY_KEYS) {
+        const tab = document.createElement('button');
+        tab.className = 'day-tab' + (dk === activeMobileDay ? ' active' : '');
+        tab.textContent = DAY_NAME_MAP[dk];
+        tab.onclick = () => { activeMobileDay = dk; renderSchedule(); };
+        tabs.appendChild(tab);
+      }
+
+      // Build per-slot list for the selected day
+      for (let i=0; i<SLOTS.length; i++) {
+        const slot = SLOTS[i];
+        const row = document.createElement('div');
+        row.className = 'm-slot';
+        const label = document.createElement('div');
+        label.className = 'm-slot-label';
+        label.textContent = slot.label;
+        row.appendChild(label);
+
+        // Find item in this day and slot
+        const inThisSlot = items.filter(s =>
+          s.timing.days.includes(activeMobileDay) &&
+          s.timing.start === slot.start &&
+          s.timing.end === slot.end
+        );
+
+        if (inThisSlot.length === 0) {
+          const none = document.createElement('div');
+          none.className = 'small';
+          none.textContent = '—';
+          row.appendChild(none);
+        } else {
+          for (const sec of inThisSlot) {
+            const card = document.createElement('div');
+            card.className = 'm-block';
+            card.innerHTML = `
+              <div><strong>${sec.course}</strong> Sec ${sec.section}</div>
+              <div class="small">${sec.title || ''}</div>
+              <div class="small"></div>
+            `;
+            card.querySelector('.small:last-child').textContent = sec.faculty || '';
+            row.appendChild(card);
+          }
+        }
+
+        mSched.appendChild(row);
       }
     }
+  }
 
-    // Plan list
+  function renderPlanList() {
+    const plan = plans.find(p => p.id === activePlanId);
+    const items = (plan?.items || []).map(k => sectionByKey.get(k)).filter(Boolean);
     const list = $('#planList');
     list.innerHTML = '';
     for (const sec of items) {
@@ -552,8 +749,9 @@
   function renderAll() {
     renderPlans();
     renderFilters();
-    renderCourseTable();
-    renderScheduleAndPlan();
+    renderCourseTableOrCards();
+    renderSchedule();
+    renderPlanList();
   }
 
   // ---------- Events ----------
@@ -610,9 +808,35 @@
     saveAll(); renderAll();
   };
 
-  $('#search').oninput = () => renderCourseTable();
-  $('#filterDay').onchange = () => renderCourseTable();
-  $('#filterAvail').onchange = () => renderCourseTable();
+  $('#search').oninput = () => renderCourseTableOrCards();
+  $('#filterDay').onchange = () => renderCourseTableOrCards();
+  $('#filterAvail').onchange = () => renderCourseTableOrCards();
+
+  // Filters bottom sheet toggles (mobile)
+  $('#btnToggleFilters').onclick = () => {
+    const wrap = $('#filtersWrap');
+    const bd = $('#filtersBackdrop');
+    const open = !wrap.classList.contains('open');
+    wrap.classList.toggle('open', open);
+    bd.classList.toggle('show', open);
+    $('#btnToggleFilters').setAttribute('aria-expanded', open ? 'true' : 'false');
+  };
+  $('#filtersBackdrop').onclick = () => {
+    $('#filtersWrap').classList.remove('open');
+    $('#filtersBackdrop').classList.remove('show');
+    $('#btnToggleFilters').setAttribute('aria-expanded', 'false');
+  };
+  $('#btnCloseFilters').onclick = () => {
+    $('#filtersWrap').classList.remove('open');
+    $('#filtersBackdrop').classList.remove('show');
+    $('#btnToggleFilters').setAttribute('aria-expanded', 'false');
+  };
+
+  // Mobile breakpoint watcher
+  mql.addEventListener('change', e => {
+    isMobile = e.matches;
+    renderAll();
+  });
 
   // ---------- Init ----------
   loadAll();
