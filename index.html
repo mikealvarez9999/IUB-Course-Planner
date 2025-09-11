@@ -639,12 +639,30 @@
   if (mql.addEventListener) mql.addEventListener('change', mqlHandler); else mql.addListener(mqlHandler);
 
   // ---------- PWA: Service Worker ----------
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('service-worker.js')
-        .catch(err => console.warn('SW registration failed', err));
-    });
-  }
+  // SW registration + auto-update
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', async () => {
+    try {
+      const reg = await navigator.serviceWorker.register('service-worker.js');
+
+      // 1) Check for an update right away
+      reg.update();
+
+      // 2) Optionally check periodically (e.g., every hour)
+      setInterval(() => reg.update(), 60 * 60 * 1000);
+
+      // 3) Reload the page when the new SW activates and takes control
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (refreshing) return;
+        refreshing = true;
+        window.location.reload();
+      });
+    } catch (e) {
+      console.warn('SW register failed', e);
+    }
+  });
+}
 
   // ---------- Init ----------
   applyThemeOnLoad();
