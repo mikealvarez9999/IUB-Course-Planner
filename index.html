@@ -158,7 +158,7 @@
         <!-- Desktop schedule grid -->
         <div class="schedule desktop" id="schedule"></div>
 
-        <!-- Mobile schedule list (removed inline display:none to fix hidden panel) -->
+        <!-- Mobile schedule list (CSS controls visibility; no inline display:none) -->
         <div class="m-schedule" id="mSchedule"></div>
 
         <div style="margin-top:12px;">
@@ -179,7 +179,11 @@
   const DAY_KEYS = ['A','S','M','T','W','R']; // No Friday
   const DAY_NAME_MAP = { A:'Sat', S:'Sun', M:'Mon', T:'Tue', W:'Wed', R:'Thu' };
   const DAY_MAP = Object.fromEntries(DAY_KEYS.map((k,i)=>[k,i]));
+
+  // Current storage key + legacy keys for migration
   const STORAGE_PLANS = 'iub-plans-v7';
+  const LEGACY_PLAN_KEYS = ['iub-plans-v7','iub-plans-v6','iub-plans-v5','iub-plans-v4'];
+
   const STORAGE_THEME = 'iub-theme';
 
   // Time slots
@@ -225,17 +229,45 @@
   }
   function keyOf(sec) { return `${sec.course}|${sec.section}|${sec.timing.label}|${(sec.faculty||'').trim()}`; }
   function saveAll() { localStorage.setItem(STORAGE_PLANS, JSON.stringify({ plans, activePlanId })); }
-  function loadAll() {
+
+  // Read a plans blob from a specific key
+  function readPlansKey(key) {
     try {
-      const p = JSON.parse(localStorage.getItem(STORAGE_PLANS) || '{}');
-      if (Array.isArray(p.plans)) plans = p.plans;
-      if (p.activePlanId) activePlanId = p.activePlanId;
+      const raw = localStorage.getItem(key);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.plans)) return parsed;
     } catch {}
+    return null;
+  }
+
+  // Load from the newest available key (migrates legacy keys automatically)
+  function loadAll() {
+    let found = null;
+    let foundKey = null;
+    for (const k of LEGACY_PLAN_KEYS) {
+      const maybe = readPlansKey(k);
+      if (maybe && maybe.plans && maybe.plans.length >= 0) { // allow empty plan lists too
+        found = maybe; foundKey = k; break;
+      }
+    }
+    if (found) {
+      plans = Array.isArray(found.plans) ? found.plans : [];
+      activePlanId = found.activePlanId || plans[0]?.id || null;
+      // Save under current key if we loaded from an older one
+      if (foundKey !== STORAGE_PLANS) {
+        saveAll();
+      }
+    }
+    // If still nothing, seed with Plan A
     if (!Array.isArray(plans) || plans.length === 0) {
       const id = 'p_' + Math.random().toString(36).slice(2);
-      plans = [{ id, name: 'Plan A', items: [] }]; activePlanId = id; saveAll();
+      plans = [{ id, name: 'Plan A', items: [] }];
+      activePlanId = id;
+      saveAll();
     }
   }
+
   function updateThemeColorMeta(theme) {
     let meta = document.querySelector('meta[name="theme-color"]:not([media])');
     const color = theme === 'light' ? '#f3f4f6' : '#0b0f14';
@@ -427,7 +459,6 @@
     const k = keyOf(sec);
     if (!active.items.includes(k)) active.items.push(k);
     saveAll(); renderAll();
-    // Success toast: code, section, time only (no day letters)
     showToast(`Added ${sec.course} Sec-${sec.section} ${hhmm(sec.timing.start)}-${hhmm(sec.timing.end)}`);
   }
 
@@ -639,30 +670,18 @@
   if (mql.addEventListener) mql.addEventListener('change', mqlHandler); else mql.addListener(mqlHandler);
 
   // ---------- PWA: Service Worker ----------
-  // SW registration + auto-update
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => {
-    try {
-      const reg = await navigator.serviceWorker.register('service-worker.js');
-
-      // 1) Check for an update right away
-      reg.update();
-
-      // 2) Optionally check periodically (e.g., every hour)
-      setInterval(() => reg.update(), 60 * 60 * 1000);
-
-      // 3) Reload the page when the new SW activates and takes control
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('service-worker.js')
+        .then(reg => { reg.update?.(); })
+        .catch(err => console.warn('SW registration failed', err));
+      // Auto-reload when a new SW takes control
       let refreshing = false;
       navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (refreshing) return;
-        refreshing = true;
-        window.location.reload();
+        if (refreshing) return; refreshing = true; window.location.reload();
       });
-    } catch (e) {
-      console.warn('SW register failed', e);
-    }
-  });
-}
+    });
+  }
 
   // ---------- Init ----------
   applyThemeOnLoad();
