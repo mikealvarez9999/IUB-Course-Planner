@@ -120,6 +120,153 @@
     }
     #toast.show { opacity: 1; transform: translateY(0); }
 
+    /* Mobile Utility Classes */
+    .mobile-only { display: none; }
+    .desktop-only { display: initial; }
+
+    /* Mobile Responsive Styles */
+    @media (max-width: 900px) {
+      header { padding: 12px 16px; }
+      header h1 { font-size: 16px; }
+      
+      .container { 
+        display: block; 
+        padding: 12px; 
+        gap: 0; 
+      }
+      
+      .panel { 
+        margin-bottom: 16px; 
+        padding: 0;
+      }
+      .panel .body { padding: 16px; }
+      
+      /* Mobile Panel Navigation */
+      .mobile-panel-tabs { 
+        display: flex; 
+        gap: 0; 
+        margin-bottom: 16px; 
+        background: #0f1520; 
+        border: 1px solid #263044; 
+        border-radius: 8px; 
+        padding: 4px; 
+      }
+      
+      .mobile-panel-tabs button { 
+        flex: 1; 
+        padding: 12px; 
+        background: transparent; 
+        color: var(--muted); 
+        border: none; 
+        border-radius: 6px; 
+        font-size: 14px; 
+        font-weight: 600; 
+        cursor: pointer; 
+        transition: all 0.2s; 
+      }
+      
+      .mobile-panel-tabs button.active { 
+        background: var(--accent); 
+        color: white; 
+      }
+      
+      /* Hide inactive panel on mobile */
+      .panel.mobile-hidden { 
+        display: none; 
+      }
+      
+      /* Mobile input improvements */
+      input[type="text"], select { 
+        font-size: 16px; 
+        padding: 12px; 
+      }
+      
+      .btn { 
+        font-size: 14px; 
+        padding: 12px 16px; 
+        min-height: 44px; 
+      }
+      
+      /* Mobile table improvements */
+      .courses .table { 
+        font-size: 12px; 
+      }
+      
+      .courses th, .courses td { 
+        padding: 8px 4px; 
+      }
+      
+      /* Mobile schedule improvements */
+      .schedule .slots {
+        width: 80px;
+      }
+      .schedule .days {
+        left: 80px;
+      }
+      
+      /* Mobile Day Navigation */
+      .mobile-day-nav { 
+        display: flex; 
+        gap: 4px; 
+        margin-bottom: 12px; 
+        background: #0f1520; 
+        border: 1px solid #263044; 
+        border-radius: 6px; 
+        padding: 3px; 
+      }
+      
+      .mobile-day-nav button { 
+        flex: 1; 
+        padding: 8px 4px; 
+        background: transparent; 
+        color: var(--muted); 
+        border: none; 
+        border-radius: 4px; 
+        font-size: 12px; 
+        font-weight: 600; 
+        cursor: pointer; 
+        transition: all 0.2s; 
+      }
+      
+      .mobile-day-nav button.active { 
+        background: var(--accent); 
+        color: white; 
+      }
+      
+      /* Mobile single-day schedule */
+      .schedule.mobile-single-day .days {
+        display: block;
+      }
+      
+      .schedule.mobile-single-day .day-col {
+        display: none;
+        border-left: none;
+      }
+      
+      .schedule.mobile-single-day .day-col.active {
+        display: block;
+      }
+      
+      /* Mobile toast positioning */
+      #toast {
+        top: 20px; 
+        left: 50%; 
+        right: auto; 
+        transform: translateX(-50%) translateY(-8px); 
+        width: 90%; 
+        max-width: 300px; 
+        text-align: center; 
+      }
+      
+      #toast.show {
+        transform: translateX(-50%) translateY(0);
+      }
+      
+      /* Utility class switches */
+      .mobile-only { display: initial; }
+      .desktop-only { display: none; }
+    }
+
     @media (max-width: 1100px) {
       .container { grid-template-columns: 1fr; }
     }
@@ -132,8 +279,14 @@
   </header>
 
   <div class="container">
+    <!-- Mobile Panel Tabs (only visible on mobile) -->
+    <div class="mobile-panel-tabs mobile-only">
+      <button id="mobileCourseTab" class="active">Courses</button>
+      <button id="mobilePlanTab">Plan</button>
+    </div>
+
     <!-- Left: courses -->
-    <div class="panel courses">
+    <div class="panel courses" id="coursesPanel">
       <div class="body">
         <h2>Courses</h2>
         <div class="toolbar">
@@ -173,7 +326,7 @@
     </div>
 
     <!-- Right: plans + schedule -->
-    <div class="panel">
+    <div class="panel" id="plansPanel">
       <div class="body">
         <h2>Plans</h2>
         <div class="row" style="margin-bottom:8px">
@@ -190,7 +343,17 @@
 
         <div style="border-top:1px solid #1a2230; margin:10px 0"></div>
 
-        <div class="legend">
+        <!-- Mobile Day Navigation (only visible on mobile) -->
+        <div class="mobile-day-nav mobile-only">
+          <button data-day="A" class="active">A</button>
+          <button data-day="S">S</button>
+          <button data-day="M">M</button>
+          <button data-day="T">T</button>
+          <button data-day="W">W</button>
+          <button data-day="R">R</button>
+        </div>
+
+        <div class="legend desktop-only">
           <div class="pill">A: Sat</div>
           <div class="pill">S: Sun</div>
           <div class="pill">M: Mon</div>
@@ -614,9 +777,116 @@
   $('#filterDay').onchange = () => renderCourseTable();
   $('#filterAvail').onchange = () => renderCourseTable();
 
+  // ---------- Mobile Functionality ----------
+  function isMobile() {
+    return window.matchMedia('(max-width: 900px)').matches;
+  }
+
+  function applyMobileTabs() {
+    const coursesPanel = $('#coursesPanel');
+    const plansPanel = $('#plansPanel');
+    const mobileCourseTab = $('#mobileCourseTab');
+    const mobilePlanTab = $('#mobilePlanTab');
+    const schedule = $('#schedule');
+    
+    if (isMobile()) {
+      // Apply mobile layout
+      const activeCourse = mobileCourseTab.classList.contains('active');
+      
+      if (activeCourse) {
+        coursesPanel.classList.remove('mobile-hidden');
+        plansPanel.classList.add('mobile-hidden');
+      } else {
+        coursesPanel.classList.add('mobile-hidden');
+        plansPanel.classList.remove('mobile-hidden');
+      }
+      
+      // Apply single-day view to schedule
+      if (schedule) {
+        schedule.classList.add('mobile-single-day');
+        applyMobileDayView();
+      }
+    } else {
+      // Desktop layout - show both panels
+      coursesPanel.classList.remove('mobile-hidden');
+      plansPanel.classList.remove('mobile-hidden');
+      
+      // Remove single-day view from schedule
+      if (schedule) {
+        schedule.classList.remove('mobile-single-day');
+        // Show all day columns on desktop
+        const dayColumns = schedule.querySelectorAll('.day-col');
+        dayColumns.forEach(col => col.classList.remove('active'));
+      }
+    }
+  }
+
+  function applyMobileDayView() {
+    const schedule = $('#schedule');
+    const dayNavButtons = document.querySelectorAll('.mobile-day-nav button');
+    
+    if (!schedule || !isMobile()) return;
+    
+    // Find active day (default to first one)
+    let activeDay = null;
+    dayNavButtons.forEach(btn => {
+      if (btn.classList.contains('active')) {
+        activeDay = btn.dataset.day;
+      }
+    });
+    
+    if (!activeDay) {
+      activeDay = 'A'; // Default to Saturday
+      dayNavButtons[0]?.classList.add('active');
+    }
+    
+    // Show only the active day column
+    const dayColumns = schedule.querySelectorAll('.day-col');
+    dayColumns.forEach(col => {
+      const dayIndex = Array.from(col.parentNode.children).indexOf(col);
+      const dayKey = DAY_KEYS[dayIndex];
+      
+      if (dayKey === activeDay) {
+        col.classList.add('active');
+      } else {
+        col.classList.remove('active');
+      }
+    });
+  }
+
+  // Mobile panel tab listeners
+  $('#mobileCourseTab').onclick = () => {
+    $('#mobileCourseTab').classList.add('active');
+    $('#mobilePlanTab').classList.remove('active');
+    applyMobileTabs();
+  };
+
+  $('#mobilePlanTab').onclick = () => {
+    $('#mobilePlanTab').classList.add('active');
+    $('#mobileCourseTab').classList.remove('active');
+    applyMobileTabs();
+  };
+
+  // Mobile day navigation listeners
+  document.querySelectorAll('.mobile-day-nav button').forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll('.mobile-day-nav button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      applyMobileDayView();
+    };
+  });
+
+  // Window resize listener
+  window.addEventListener('resize', () => {
+    applyMobileTabs();
+  });
+
   // ---------- Init ----------
   loadAll();
-  loadSectionsFromBackend().then(renderAll);
+  loadSectionsFromBackend().then(() => {
+    renderAll();
+    applyMobileTabs(); // Apply mobile layout after initial render
+  });
 </script>
 </body>
 </html>
