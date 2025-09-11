@@ -5,34 +5,31 @@
   <title>IUB Course Planner</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- PWA: manifest + theme colors + Apple -->
-  <link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials" />
-  <meta name="theme-color" content="#0b0f14" media="(prefers-color-scheme: dark)">
-  <meta name="theme-color" content="#f3f4f6" media="(prefers-color-scheme: light)">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-
-  <!-- Favicons -->
-  <link rel="icon" href="icons/icon-round.png" type="image/png" />
-  <link rel="icon" href="icons/favicon.svg" type="image/svg+xml" />
+  <!-- PWA: theme color (updated dynamically by JS when theme changes) -->
+  <meta name="theme-color" content="#121821" />
+  <!-- iOS PWA enhancements -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="manifest" href="manifest.webmanifest" />
 
   <link rel="stylesheet" href="styles.css" />
 
-  <!-- Google Analytics (GA4) - replace with your measurement ID -->
+  <!-- Google Analytics (GA4) — add your ID and it will auto-enable -->
   <script>
-    (function(){
-      const GA_MEASUREMENT_ID = 'G-DW57CD9V2F'; // TODO: replace with your GA4 measurement ID
-      if (!GA_MEASUREMENT_ID || GA_MEASUREMENT_ID === 'G-DW57CD9V2F') return;
-      const s = document.createElement('script');
-      s.async = true;
-      s.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA_MEASUREMENT_ID;
-      document.head.appendChild(s);
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){ dataLayer.push(arguments); }
-      window.gtag = gtag;
-      gtag('js', new Date());
-      gtag('config', GA_MEASUREMENT_ID, { anonymize_ip: true, transport_type: 'beacon' });
+    (function initGA() {
+      const GA_ID = 'G-XXXXXXXXXX'; // TODO: replace with your GA4 Measurement ID (e.g., G-ABC123XYZ)
+      if (GA_ID && GA_ID.startsWith('G-') && GA_ID !== 'G-XXXXXXXXXX') {
+        const s = document.createElement('script');
+        s.async = true;
+        s.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA_ID;
+        document.head.appendChild(s);
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){ dataLayer.push(arguments); }
+        window.gtag = gtag;
+        gtag('js', new Date());
+        gtag('config', GA_ID, { send_page_view: true });
+      }
     })();
   </script>
 </head>
@@ -47,12 +44,12 @@
     <!-- Theme toggle: sliding switch with sun/moon icons -->
     <button id="themeToggleBtn" class="theme-switch" aria-label="Toggle theme" title="Toggle theme">
       <span class="ts-icon ts-moon" aria-hidden="true">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 1 0 9.79 9.79z"></path>
         </svg>
       </span>
       <span class="ts-icon ts-sun" aria-hidden="true">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <path d="M6.76 4.84l-1.8-1.79L3.17 4.84l1.79 1.79 1.8-1.79zM1 13h3v-2H1v2zm10 10h2v-3h-2v3zm9.83-3.16l-1.79-1.79-1.8 1.79 1.8 1.79 1.79-1.79zM20 11v2h3v-2h-3zM12 1h-2v3h2V1zm6.24 3.84l1.79-1.79-1.79-1.79-1.8 1.79 1.8 1.79zM12 6a6 6 0 100 12 6 6 0 000-12zM4.84 17.24l-1.79 1.79 1.79 1.79 1.79-1.79-1.79-1.79z"></path>
         </svg>
       </span>
@@ -159,7 +156,7 @@
         <div class="schedule desktop" id="schedule"></div>
 
         <!-- Mobile schedule list -->
-        <div class="m-schedule" id="mSchedule"></div>
+        <div class="m-schedule" id="mSchedule" style="display:none;"></div>
 
         <div style="margin-top:12px;">
           <div class="row" style="justify-content: space-between;">
@@ -179,20 +176,17 @@
   const DAY_KEYS = ['A','S','M','T','W','R']; // No Friday
   const DAY_NAME_MAP = { A:'Sat', S:'Sun', M:'Mon', T:'Tue', W:'Wed', R:'Thu' };
   const DAY_MAP = Object.fromEntries(DAY_KEYS.map((k,i)=>[k,i]));
-
-  // Current storage key + legacy keys for migration
-  const STORAGE_PLANS = 'iub-plans-v7';
-  const LEGACY_PLAN_KEYS = ['iub-plans-v7','iub-plans-v6','iub-plans-v5','iub-plans-v4'];
+  const STORAGE_PLANS = 'iub-plans-v8';
   const STORAGE_THEME = 'iub-theme';
 
-  // Time slots
+  // IUB discrete time slots
   const SLOTS = [
-    { start: 8*60, end: 9*60+30,  label: '08:00-09:30' },
-    { start: 9*60+40, end: 11*60+10, label: '09:40-11:10' },
-    { start: 11*60+20, end: 12*60+50, label: '11:20-12:50' },
-    { start: 13*60, end: 14*60+30, label: '13:00-14:30' },
-    { start: 14*60+40, end: 16*60+10, label: '14:40-16:10' },
-    { start: 16*60+20, end: 17*60+50, label: '16:20-17:50' },
+    { start: 8*60,        end: 9*60+30,  label: '08:00-09:30' },
+    { start: 9*60+40,     end: 11*60+10, label: '09:40-11:10' },
+    { start: 11*60+20,    end: 12*60+50, label: '11:20-12:50' },
+    { start: 13*60,       end: 14*60+30, label: '13:00-14:30' },
+    { start: 14*60+40,    end: 16*60+10, label: '14:40-16:10' },
+    { start: 16*60+20,    end: 17*60+50, label: '16:20-17:50' },
   ];
   const SLOT_HEIGHT = 100;
   const HEADER_OFFSET = 24;
@@ -200,7 +194,7 @@
 
   // ---------- State ----------
   let sections = [];
-  let plans = [];
+  let plans = [];    // [{id,name,items:[sectionKey]}]
   let activePlanId = null;
   const sectionByKey = new Map();
   let activeMobileDay = 'S';
@@ -210,11 +204,12 @@
   // ---------- Utilities ----------
   const $ = sel => document.querySelector(sel);
   function minutesFromHHMM(s) {
-    const m = (s||'').match(/^\s*(\d{2})(\d{2})\s*$/);
+    const m = (s||'').toString().trim().match(/^(\d{2})(\d{2})$/);
     if (!m) return null;
     return parseInt(m[1],10)*60 + parseInt(m[2],10);
   }
   function parseDaysTime(str) {
+    // Trim leading/trailing spaces; accept "XX: 0800-0930" with extra spaces around dash
     const src = (str || '').trim();
     const m = src.match(/^([A-Z]+)\s*:\s*(\d{3,4})\s*-\s*(\d{3,4})$/i);
     if (!m) return null;
@@ -223,36 +218,21 @@
     const start = minutesFromHHMM(m[2]);
     const end = minutesFromHHMM(m[3]);
     if (!dayCodes.length || start == null || end == null) return null;
-    const label = `${rawDays}: ${m[2].trim()}-${m[3].trim()}`; // normalized
-    return { days: dayCodes, start, end, label };
+    // normalized, no leading spaces
+    return { days: dayCodes, start, end, label: `${rawDays}: ${m[2].trim()}-${m[3].trim()}` };
   }
-  function keyOf(sec) { return `${sec.course}|${sec.section}|${sec.timing.label}|${(sec.faculty||'').trim()}`; }
-  function saveAll() { localStorage.setItem(STORAGE_PLANS, JSON.stringify({ plans, activePlanId })); }
-
-  // Read a plans blob from a specific key
-  function readPlansKey(key) {
-    try {
-      const raw = localStorage.getItem(key);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw);
-      if (parsed && Array.isArray(parsed.plans)) return parsed;
-    } catch {}
-    return null;
+  function keyOf(sec) {
+    return `${sec.course}|${sec.section}|${sec.timing.label}|${(sec.faculty||'').trim()}`;
   }
-
-  // Load from the newest available key (migrates legacy keys automatically)
+  function saveAll() {
+    localStorage.setItem(STORAGE_PLANS, JSON.stringify({ plans, activePlanId }));
+  }
   function loadAll() {
-    let found = null;
-    let foundKey = null;
-    for (const k of LEGACY_PLAN_KEYS) {
-      const maybe = readPlansKey(k);
-      if (maybe && maybe.plans) { found = maybe; foundKey = k; break; }
-    }
-    if (found) {
-      plans = Array.isArray(found.plans) ? found.plans : [];
-      activePlanId = found.activePlanId || plans[0]?.id || null;
-      if (foundKey !== STORAGE_PLANS) saveAll();
-    }
+    try {
+      const p = JSON.parse(localStorage.getItem(STORAGE_PLANS) || '{}');
+      if (Array.isArray(p.plans)) plans = p.plans;
+      if (p.activePlanId) activePlanId = p.activePlanId;
+    } catch {}
     if (!Array.isArray(plans) || plans.length === 0) {
       const id = 'p_' + Math.random().toString(36).slice(2);
       plans = [{ id, name: 'Plan A', items: [] }];
@@ -260,79 +240,23 @@
       saveAll();
     }
   }
-
-  // Fallback resolver: map old saved keys to current sections (course/section/faculty/time)
-  function resolveSectionFromKey(k) {
-    const parts = (k||'').split('|');
-    const course = parts[0] || '';
-    const sectionNum = parseInt(parts[1] || '0', 10);
-    const label = parts[2] || '';
-    const faculty = (parts[3] || '').trim();
-
-    let candidates = sections.filter(s => s.course === course && s.section === sectionNum);
-    if (faculty) candidates = candidates.filter(s => (s.faculty||'').trim() === faculty);
-
-    if (candidates.length > 1 && label) {
-      const m = label.match(/(\d{2}):?(\d{2})-(\d{2}):?(\d{2})/);
-      if (m) {
-        const start = parseInt(m[1],10)*60 + parseInt(m[2],10);
-        const end   = parseInt(m[3],10)*60 + parseInt(m[4],10);
-        const byTime = candidates.find(s => s.timing.start === start && s.timing.end === end);
-        if (byTime) return byTime;
-      }
-    }
-    return candidates[0] || null;
-  }
-
-  // Return resolved items for the active plan (backward compatible)
-  function resolvePlanItems(plan) {
-    const out = [];
-    for (const k of (plan?.items || [])) {
-      const exact = sectionByKey.get(k);
-      if (exact) { out.push(exact); continue; }
-      const fallback = resolveSectionFromKey(k);
-      if (fallback) out.push(fallback);
-    }
-    return out;
-  }
-
-  // One-time migration: rewrite old keys to canonical keys so future loads are exact
-  function migratePlanKeys() {
-    let changed = false;
-    for (const p of plans) {
-      const items = resolvePlanItems(p);
-      const newKeys = Array.from(new Set(items.map(keyOf)));
-      if (newKeys.length !== p.items.length || newKeys.some((v,i)=>v!==p.items[i])) {
-        p.items = newKeys;
-        changed = true;
-      }
-    }
-    if (changed) saveAll();
-  }
-
-  function updateThemeColorMeta(theme) {
-    let meta = document.querySelector('meta[name="theme-color"]:not([media])');
-    const color = theme === 'light' ? '#f3f4f6' : '#0b0f14';
-    if (!meta) {
-      meta = document.createElement('meta');
-      meta.setAttribute('name','theme-color');
-      document.head.appendChild(meta);
-    }
-    meta.setAttribute('content', color);
+  function updateThemeMeta(theme) {
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', theme === 'light' ? '#ffffff' : '#121821');
   }
   function applyThemeOnLoad() {
     const saved = localStorage.getItem(STORAGE_THEME);
     const theme = saved === 'light' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', theme);
+    updateThemeMeta(theme);
     syncThemeButton(theme);
-    updateThemeColorMeta(theme);
   }
   function setTheme(isLight) {
     const theme = isLight ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem(STORAGE_THEME, theme);
+    updateThemeMeta(theme);
     syncThemeButton(theme);
-    updateThemeColorMeta(theme);
   }
   function syncThemeButton(theme) {
     const btn = $('#themeToggleBtn');
@@ -340,7 +264,10 @@
     const isLight = theme === 'light';
     btn.setAttribute('aria-label', isLight ? 'Switch to dark theme' : 'Switch to light theme');
   }
-  function reindex() { sectionByKey.clear(); for (const sec of sections) sectionByKey.set(keyOf(sec), sec); }
+  function reindex() {
+    sectionByKey.clear();
+    for (const sec of sections) sectionByKey.set(keyOf(sec), sec);
+  }
   function overlaps(a, b) { return a.start < b.end && b.start < a.end; }
   function findConflictingWith(items, candidate) {
     for (const s of items) {
@@ -350,11 +277,22 @@
     }
     return null;
   }
-  function seatStatus(sec) { const open = Math.max(sec.capacity - sec.enrolled, 0); return { open, full: open === 0 }; }
-  function showToast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(showToast._timer); showToast._timer = setTimeout(()=>t.classList.remove('show'), 2800); }
-  function slotIndexFor(start, end) { for (let i=0;i<SLOTS.length;i++) if (SLOTS[i].start===start && SLOTS[i].end===end) return i; return -1; }
-  function inDayGroup(sec, groupKey) { const group = DAY_GROUPS[groupKey]; if (!group) return true; return sec.timing.days.some(d => group.includes(d)); }
-  function hhmm(n){ const h=String(Math.floor(n/60)).padStart(2,'0'); const m=String(n%60).padStart(2,'0'); return `${h}:${m}`; }
+  function seatStatus(sec) {
+    const open = Math.max(sec.capacity - sec.enrolled, 0);
+    return { open, full: open === 0 };
+  }
+  function showToast(msg) {
+    const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(showToast._timer); showToast._timer = setTimeout(()=>t.classList.remove('show'), 2800);
+  }
+  function slotIndexFor(start, end) {
+    for (let i=0;i<SLOTS.length;i++) if (SLOTS[i].start===start && SLOTS[i].end===end) return i;
+    return -1;
+  }
+  function inDayGroup(sec, groupKey) {
+    const group = DAY_GROUPS[groupKey]; if (!group) return true;
+    return sec.timing.days.some(d => group.includes(d));
+  }
 
   // ---------- Backend load ----------
   async function loadSectionsFromBackend() {
@@ -370,7 +308,7 @@
           course: row.course || 'UNKNOWN',
           section: parseInt(row.section || '0', 10) || 0,
           title: row.title || '',
-          faculty: (row.faculty || '').toString(),
+          faculty: (row.faculty || '').toString(), // supports "00 TBA TBA"
           timing: tParsed,
           enrolled: parseInt(row.enrolled || '0', 10) || 0,
           capacity: parseInt(row.capacity || '0', 10) || 0,
@@ -378,12 +316,7 @@
           cat: row.cat || ''
         };
       }).filter(Boolean);
-      reindex();
-
-      // After we know all sections, migrate any legacy keys once
-      migratePlanKeys();
-
-      errorBox.style.display = 'none';
+      reindex(); errorBox.style.display = 'none';
     } catch (e) {
       sections = []; reindex();
       errorBox.textContent = 'Failed to load courses. Please try again later.';
@@ -493,11 +426,13 @@
 
   function tryAddToPlan(sec, active) {
     if (!active) return showToast('Create and select a plan first.');
-    const existingItems = resolvePlanItems(active); // use resolved items
+    const existingItems = active.items.map(k => sectionByKey.get(k)).filter(Boolean);
+    // One section per course
     if (existingItems.some(x => x.course === sec.course)) {
       showToast(`You can't choose two sections of the same course (${sec.course}). Remove the other section first.`);
       return;
     }
+    // Prevent conflicts
     const conflict = findConflictingWith(existingItems, sec);
     if (conflict) {
       showToast(`Cannot add: ${sec.course} Sec-${sec.section} (${sec.timing.label}) conflicts with ${conflict.course} Sec-${conflict.section} (${conflict.timing.label}).`);
@@ -506,16 +441,16 @@
     const k = keyOf(sec);
     if (!active.items.includes(k)) active.items.push(k);
     saveAll(); renderAll();
-    showToast(`Added ${sec.course} Sec-${sec.section} ${hhmm(sec.timing.start)}-${hhmm(sec.timing.end)}`);
   }
 
   function renderSchedule() {
     const sched = $('#schedule');
     const mSched = $('#mSchedule');
     const plan = plans.find(p => p.id === activePlanId);
-    const items = resolvePlanItems(plan);
+    const items = (plan?.items || []).map(k => sectionByKey.get(k)).filter(Boolean);
 
     if (!isMobile) {
+      // Desktop grid
       $('#dayTabs').style.display = 'none';
       mSched.style.display = 'none';
       sched.style.display = 'block';
@@ -605,7 +540,7 @@
         tabs.appendChild(tab);
       }
 
-      // Build per-slot list for the selected day
+      // Slot list for selected day
       for (let i=0; i<SLOTS.length; i++) {
         const slot = SLOTS[i];
         const row = document.createElement('div');
@@ -647,7 +582,7 @@
 
   function renderPlanList() {
     const plan = plans.find(p => p.id === activePlanId);
-    const items = resolvePlanItems(plan);
+    const items = (plan?.items || []).map(k => sectionByKey.get(k)).filter(Boolean);
     const list = $('#planList');
     list.innerHTML = '';
     for (const sec of items) {
@@ -656,7 +591,7 @@
       div.innerHTML = `
         <div class="wrap">
           <strong>${sec.course}</strong> Sec ${sec.section}
-          <span class="tag">${hhmm(sec.timing.start)}-${hhmm(sec.timing.end)}</span>
+          <span class="tag">${sec.timing.label}</span>
           <div class="small">${sec.title}</div>
           <div class="small"></div>
         </div>
@@ -667,13 +602,8 @@
       btn.className = 'btn danger';
       btn.textContent = 'Remove';
       btn.onclick = () => {
-        // Remove by either exact key or by course+section (legacy entries)
-        const exactKey = keyOf(sec);
-        plan.items = plan.items.filter(x => {
-          if (x === exactKey) return false;
-          const [c,s] = (x||'').split('|');
-          return !(c === sec.course && parseInt(s||'0',10) === sec.section);
-        });
+        const k = keyOf(sec);
+        plan.items = plan.items.filter(x => x !== k);
         saveAll(); renderAll();
       };
       r.appendChild(btn);
@@ -698,7 +628,65 @@
   }
   window.addEventListener('scroll', updateHeaderCompact, { passive: true });
 
-  // Filters (mobile) bottom sheet toggles
+  // ---------- Events ----------
+  $('#btnQuickAddPlan').onclick = () => {
+    const id = 'p_' + Math.random().toString(36).slice(2);
+    plans.push({ id, name: `Plan ${String.fromCharCode(65 + plans.length)}`, items: [] });
+    activePlanId = id;
+    saveAll(); renderAll();
+    showToast('New plan created.');
+  };
+
+  $('#btnAddPlan').onclick = () => {
+    const base = ($('#newPlanName').value || '').trim();
+    const name = base || `Plan ${String.fromCharCode(65 + plans.length)}`;
+    const id = 'p_' + Math.random().toString(36).slice(2);
+    plans.push({ id, name, items: [] });
+    activePlanId = id;
+    $('#newPlanName').value = '';
+    saveAll(); renderAll();
+  };
+
+  $('#btnRenamePlan').onclick = () => {
+    const p = plans.find(x => x.id === activePlanId);
+    if (!p) return showToast('No active plan.');
+    const name = prompt('New name:', p.name);
+    if (!name) return;
+    p.name = name;
+    saveAll(); renderAll();
+  };
+
+  $('#btnDuplicatePlan').onclick = () => {
+    const p = plans.find(x => x.id === activePlanId);
+    if (!p) return showToast('No active plan.');
+    const id = 'p_' + Math.random().toString(36).slice(2);
+    plans.push({ id, name: p.name + ' (copy)', items: [...p.items] });
+    activePlanId = id;
+    saveAll(); renderAll();
+  };
+
+  $('#btnDeletePlan').onclick = () => {
+    const idx = plans.findIndex(x => x.id === activePlanId);
+    if (idx < 0) return showToast('No active plan.');
+    const ok = confirm(`Delete ${plans[idx].name}?`);
+    if (!ok) return;
+    plans.splice(idx, 1);
+    activePlanId = plans[0]?.id || null;
+    saveAll(); renderAll();
+  };
+
+  $('#btnClearActive').onclick = () => {
+    const p = plans.find(x => x.id === activePlanId);
+    if (!p) return;
+    p.items = [];
+    saveAll(); renderAll();
+  };
+
+  $('#search').oninput = () => renderCourseTableOrCards();
+  $('#filterDay').onchange = () => renderCourseTableOrCards();
+  $('#filterAvail').onchange = () => renderCourseTableOrCards();
+
+  // Filters bottom sheet toggles (mobile)
   $('#btnToggleFilters').onclick = () => {
     const wrap = $('#filtersWrap');
     const bd = $('#filtersBackdrop');
@@ -724,22 +712,31 @@
     setTheme(current !== 'light');
   });
 
-  // Mobile breakpoint watcher
-  const mqlHandler = (e) => { isMobile = e.matches; updateHeaderCompact(); renderAll(); };
-  if (mql.addEventListener) mql.addEventListener('change', mqlHandler); else mql.addListener(mqlHandler);
-
-  // ---------- PWA: Service Worker ----------
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('service-worker.js')
-        .then(reg => { reg.update?.(); })
-        .catch(err => console.warn('SW registration failed', err));
-      let refreshing = false;
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (refreshing) return; refreshing = true; window.location.reload();
+  // PWA: register service worker
+  (function registerSW() {
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', async () => {
+        try {
+          const reg = await navigator.serviceWorker.register('./sw.js');
+          // Reload when a new SW takes control
+          navigator.serviceWorker.addEventListener('controllerchange', () => {
+            // Optional: show a toast before reload
+            // showToast('App updated. Reloading…');
+            window.location.reload();
+          });
+        } catch (e) {
+          console.warn('SW registration failed:', e);
+        }
       });
-    });
-  }
+    }
+  })();
+
+  // Mobile breakpoint watcher
+  mql.addEventListener('change', e => {
+    isMobile = e.matches;
+    updateHeaderCompact();
+    renderAll();
+  });
 
   // ---------- Init ----------
   applyThemeOnLoad();
