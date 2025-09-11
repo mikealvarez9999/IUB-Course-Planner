@@ -1,5 +1,5 @@
-/* IUB Course Planner - PWA Service Worker */
-const CACHE_NAME = 'iub-course-planner-v1';
+/* IUB Course Planner - PWA Service Worker (cache bump) */
+const CACHE_NAME = 'iub-course-planner-v3'; // bumped so clients fetch the latest
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -8,7 +8,6 @@ const CORE_ASSETS = [
   './data/courses.json'
 ];
 
-// Build absolute URLs relative to SW scope
 const toURL = (path) => new URL(path, self.registration.scope).toString();
 
 self.addEventListener('install', (event) => {
@@ -26,21 +25,14 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Avoid caching analytics and cross-origin requests we don't control
-const isIgnored = (url) => {
-  return /googletagmanager\.com|google-analytics\.com/.test(url);
-};
+const isIgnored = (url) => /googletagmanager\.com|google-analytics\.com/.test(url);
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // Only handle same-origin GET
-  if (req.method !== 'GET' || url.origin !== self.location.origin || isIgnored(url.href)) {
-    return;
-  }
+  if (req.method !== 'GET' || url.origin !== self.location.origin || isIgnored(url.href)) return;
 
-  // App shell-style navigation requests: serve index.html
   if (req.mode === 'navigate') {
     event.respondWith(
       caches.match(toURL('./index.html')).then((cached) =>
@@ -54,7 +46,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Cache-first for static assets; stale-while-revalidate
   event.respondWith(
     caches.match(req).then((cached) => {
       const fetchAndUpdate = fetch(req).then((resp) => {
@@ -63,7 +54,7 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then((c) => c.put(req, copy));
         }
         return resp;
-      }).catch(() => cached); // network failed -> return cached (if any)
+      }).catch(() => cached);
       return cached || fetchAndUpdate;
     })
   );
