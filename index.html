@@ -15,7 +15,7 @@
 
   <!-- Favicons -->
   <link rel="icon" href="icons/icon-round.png" type="image/png" />
-  
+  <link rel="icon" href="icons/favicon.svg" type="image/svg+xml" />
 
   <link rel="stylesheet" href="styles.css" />
 
@@ -158,8 +158,8 @@
         <!-- Desktop schedule grid -->
         <div class="schedule desktop" id="schedule"></div>
 
-        <!-- Mobile schedule list -->
-        <div class="m-schedule" id="mSchedule" style="display:none;"></div>
+        <!-- Mobile schedule list (removed inline display:none to fix hidden panel) -->
+        <div class="m-schedule" id="mSchedule"></div>
 
         <div style="margin-top:12px;">
           <div class="row" style="justify-content: space-between;">
@@ -220,7 +220,7 @@
     const start = minutesFromHHMM(m[2]);
     const end = minutesFromHHMM(m[3]);
     if (!dayCodes.length || start == null || end == null) return null;
-    const label = `${rawDays}: ${m[2].trim()}-${m[3].trim()}`; // normalized, no leading spaces
+    const label = `${rawDays}: ${m[2].trim()}-${m[3].trim()}`; // normalized
     return { days: dayCodes, start, end, label };
   }
   function keyOf(sec) { return `${sec.course}|${sec.section}|${sec.timing.label}|${(sec.faculty||'').trim()}`; }
@@ -280,6 +280,7 @@
   function showToast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(showToast._timer); showToast._timer = setTimeout(()=>t.classList.remove('show'), 2800); }
   function slotIndexFor(start, end) { for (let i=0;i<SLOTS.length;i++) if (SLOTS[i].start===start && SLOTS[i].end===end) return i; return -1; }
   function inDayGroup(sec, groupKey) { const group = DAY_GROUPS[groupKey]; if (!group) return true; return sec.timing.days.some(d => group.includes(d)); }
+  function hhmm(n){ const h=String(Math.floor(n/60)).padStart(2,'0'); const m=String(n%60).padStart(2,'0'); return `${h}:${m}`; }
 
   // ---------- Backend load ----------
   async function loadSectionsFromBackend() {
@@ -342,8 +343,6 @@
       return true;
     });
   }
-
-  function hhmm(n){ const h=String(Math.floor(n/60)).padStart(2,'0'); const m=String(n%60).padStart(2,'0'); return `${h}:${m}`; }
 
   function renderCourseTableOrCards() {
     const list = filteredSections();
@@ -572,7 +571,7 @@
       div.innerHTML = `
         <div class="wrap">
           <strong>${sec.course}</strong> Sec ${sec.section}
-          <span class="tag">${sec.timing.label}</span>
+          <span class="tag">${hhmm(sec.timing.start)}-${hhmm(sec.timing.end)}</span>
           <div class="small">${sec.title}</div>
           <div class="small"></div>
         </div>
