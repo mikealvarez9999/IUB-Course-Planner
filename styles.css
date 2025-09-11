@@ -163,18 +163,52 @@ html[data-theme="light"] .tag { color:#0f172a; background:#e8efff; border-color:
 .table th { color: #93a6bf; text-align: left; position: sticky; top: 0; background: #101722; z-index: 1; }
 html[data-theme="light"] .table th { color:#334155; background:#f3f4f6; }
 
-/* Column sizing via colgroup (desktop only) */
+/* Disable auto table sizing on desktop: use fixed layout + fixed column widths */
 @media (min-width: 769px) {
-  .table col.col-course  { width: 9ch; }   /* e.g., ANT101 */
-  .table col.col-sec     { width: 4ch; }   /* small number */
-  .table col.col-time    { width: 16ch; }  /* fits 'MW: 1120-1250' */
-  .table col.col-seats   { width: 8ch; }   /* '35/35' */
-  .table col.col-actions { width: 12ch; }  /* 'Add to plan' button */
+  /* Turn on fixed table layout so widths come from colgroup, not content */
+  .table { table-layout: fixed; }
+
+  /* Fixed widths (px) per column via colgroup
+     Adjust if needed; horizontal scroll will appear if total > container width. */
+  .table col.col-course  { width: 110px; } /* e.g., ANT101 */
+  .table col.col-sec     { width: 60px; }  /* numeric */
+  .table col.col-time    { width: 180px; } /* ensure >= 170px */
+  .table col.col-faculty { width: 260px; }
+  .table col.col-title   { width: 360px; }
+  .table col.col-seats   { width: 80px; }  /* '35/35' */
+  .table col.col-actions { width: 140px; } /* 'Add to plan' button */
+
+  /* Enforce the Day/Time minimum explicitly as well */
+  .table th:nth-child(3),
+  .table td:nth-child(3) { min-width: 170px; }
 
   /* Keep the time chip on one line */
   .table td:nth-child(3) .tag {
     white-space: nowrap;
     display: inline-block;
+  }
+
+  /* Compact columns: avoid multi-line except where we want wrapping */
+  .table th:nth-child(1),
+  .table td:nth-child(1),
+  .table th:nth-child(2),
+  .table td:nth-child(2),
+  .table th:nth-child(3),
+  .table td:nth-child(3),
+  .table th:nth-child(6),
+  .table td:nth-child(6),
+  .table th:nth-child(7),
+  .table td:nth-child(7) {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Allow Faculty and Title to wrap within their fixed widths */
+  .table td:nth-child(4),
+  .table td:nth-child(5) {
+    white-space: normal;
+    word-break: break-word;
   }
 }
 
