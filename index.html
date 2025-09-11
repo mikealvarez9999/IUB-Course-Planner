@@ -4,203 +4,23 @@
   <meta charset="utf-8" />
   <title>IUB Course Planner</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    :root {
-      --bg: #0b0f14;
-      --panel: #121821;
-      --muted: #7a8596;
-      --text: #e7edf5;
-      --accent: #49a6e9;
-      --danger: #ef4444;
-      --ok: #10b981;
-      --grid-line: #1f2937;
-      --chip: #273041;
-      --toast-bg: #1f2937;
-      --overlay: rgba(0,0,0,0.45);
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0; color: var(--text);
-      background: linear-gradient(180deg, #0b0f14 0%, #0e131a 100%);
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji";
-    }
-    header {
-      padding: 16px 20px; border-bottom: 1px solid #18202b; background: #0d131b; position: sticky; top: 0; z-index: 10;
-      display:flex; gap:16px; align-items:center; flex-wrap:wrap;
-    }
-    header h1 { font-size: 18px; margin: 0; letter-spacing: 0.2px; }
-    header .sub { color: var(--muted); font-size: 12px; margin-left: 8px; }
-
-    /* Desktop: wider plan panel on the right */
-    .container {
-      display: grid; grid-template-columns: 1fr 600px; gap: 16px; padding: 16px;
-    }
-    .panel { background: var(--panel); border: 1px solid #1a2230; border-radius: 10px; }
-    .panel h2 { margin: 0 0 8px 0; font-size: 14px; color: #b8c5d6; letter-spacing: 0.2px; }
-    .panel .body { padding: 12px; }
-    .row { display:flex; gap: 8px; align-items:center; flex-wrap:wrap; }
-    input[type="text"], select {
-      width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #263044; background: #0f1520; color: var(--text);
-      outline: none; font-size: 14px;
-    }
-    .btn {
-      appearance: none; border: 1px solid #263044; color: var(--text); background: #122034; padding: 10px 12px; border-radius: 10px;
-      font-size: 14px; cursor: pointer; min-height: 40px;
-    }
-    .btn:hover { filter: brightness(1.1); }
-    .btn.accent { background: linear-gradient(135deg, #2a6fbe, #49a6e9); border-color: transparent; }
-    .btn.alt { background: #212b3d; }
-    .btn.danger { background: #2a1518; border-color: #412127; color: #ffb4b4; }
-
-    .plans { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-    .plan {
-      padding: 8px 14px; border-radius: 999px; border: 1px solid #2a3347; background: #101827; cursor:pointer; font-size: 13px;
-      color: #cfe6ff; min-height: 40px;
-    }
-    .plan.active { border-color: #3b82f6; box-shadow: inset 0 0 0 1px #3b82f6; color: #ffffff; }
-    .plan.new { background:#18314f; border-color:#264b7b; }
-
-    .courses .toolbar { display:flex; gap:8px; align-items:center; margin-bottom: 8px; }
-    .tag { font-size: 11px; color: #cbd5e1; background: #243044; padding: 2px 6px; border-radius: 6px; border: 1px solid #2b3a55; }
-    .avail.ok { color: var(--ok); }
-    .avail.full { color: var(--danger); }
-    .small { font-size: 12px; color: #7a8596; }
-    .right { text-align: right; }
-    .nowrap { white-space: nowrap; }
-    .wrap { word-break: break-word; }
-    .footnote { color: #9cb0c8; font-size: 12px; margin-top: 8px; }
-
-    /* Desktop table */
-    .table-wrap { max-height: 700px; overflow: auto; border:1px solid #1a2230; border-radius:8px; }
-    .table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .table th, .table td { border-bottom: 1px solid #1a2230; padding: 8px; vertical-align: top; }
-    .table th { color: #93a6bf; text-align: left; position: sticky; top: 0; background: #101722; z-index: 1; }
-    .actions { display:flex; gap:6px; }
-
-    /* Mobile course cards */
-    .cards { display: none; gap: 10px; }
-    .card {
-      border: 1px solid #1a2230; border-radius: 10px; background: #0f1520; padding: 10px; display: grid; gap: 6px;
-    }
-    .card-top { display:flex; justify-content:space-between; align-items:center; gap:8px; }
-    .card-title { font-weight: 700; }
-    .card-sub { color:#b8c5d6; font-size: 12px; }
-    .card-meta { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-    .card-actions { display:flex; gap:8px; }
-
-    /* Schedule (desktop): discrete slots aligned under day headers (no Friday) */
-    .schedule {
-      position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #1a2230; background: #0f1520;
-    }
-    .schedule .slots {
-      position: absolute; left: 0; top: 0; bottom: 0; width: 110px; border-right: 1px solid #1b2637; color: #9cb0c8; font-size: 11px;
-      background:#101722;
-    }
-    .slots .slots-header {
-      position: sticky; top: 0; height: 24px; border-bottom: 1px solid #1a2230; background:#101722;
-    }
-    .schedule .slot {
-      position: absolute; left: 0; right: 0; border-top: 1px dashed var(--grid-line); padding: 4px 6px;
-    }
-    .schedule .days {
-      position: absolute; left: 110px; right: 0; top: 0; bottom: 0; display: grid; grid-template-columns: repeat(6, 1fr);
-    }
-    .day-col { border-left: 1px solid #1b2637; position: relative; }
-    .day-col .day-header {
-      position: sticky; top: 0; background: #101722; padding: 4px 6px; border-bottom: 1px solid #1a2230; z-index: 1; height: 24px; display:flex; align-items:center;
-    }
-    .block {
-      position: absolute; left: 6px; right: 6px; border-radius: 8px; padding: 6px 8px; font-size: 12px; color: #dce7f6;
-      border: 1px solid #31527b; background: linear-gradient(180deg, rgba(49, 115, 190, 0.35), rgba(36, 65, 109, 0.35));
-      overflow: hidden;
-    }
-
-    /* Plan title (white, heading-like) */
-    .plan-title {
-      font-size: 16px; font-weight: 700; color: #ffffff; margin: 6px 0 8px 0;
-    }
-
-    .section-list { font-size: 13px; }
-    .section-list .item { border-bottom: 1px dashed #22304a; padding: 6px 0; display:flex; justify-content:space-between; gap:8px; }
-
-    /* Day legend (without Friday) */
-    .legend { display:flex; gap:8px; flex-wrap:wrap; margin-bottom: 8px; }
-    .pill { padding: 2px 6px; border-radius: 999px; background:#193759; border:1px solid #284d78; font-size:11px; color:#cfe6ff; }
-
-    /* Toast bubble */
-    #toast {
-      position: fixed; top: 16px; right: 16px; z-index: 9999;
-      background: var(--toast-bg); color: #fff; border: 1px solid #334155; border-radius: 8px;
-      padding: 10px 12px; font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-      opacity: 0; transform: translateY(-8px); transition: opacity .2s ease, transform .2s ease;
-      pointer-events: none;
-    }
-    #toast.show { opacity: 1; transform: translateY(0); }
-
-    /* Mobile-only additions */
-    .mobile-only { display: none; }
-    .day-tabs { display:none; gap:6px; flex-wrap:nowrap; overflow:auto; padding-bottom: 6px; margin-top: -4px; }
-    .day-tab {
-      padding: 6px 10px; border-radius: 999px; border:1px solid #2a3347; background:#101827; color:#cfe6ff; white-space: nowrap;
-      scroll-snap-align: start;
-    }
-    .day-tab.active { border-color:#3b82f6; color:#fff; }
-
-    /* Filters bottom sheet on mobile */
-    #filtersBackdrop {
-      display:none; position: fixed; inset: 0; background: var(--overlay); z-index: 40;
-    }
-    .filtersWrap { display:flex; gap:8px; align-items:center; }
-    @media (max-width: 768px) {
-      .container { grid-template-columns: 1fr; }
-      #planPanel { order: 1; }
-      #coursesPanel { order: 2; }
-
-      /* Plans: horizontal scroll with snap */
-      .plans {
-        overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px;
-        scroll-snap-type: x mandatory;
-      }
-      .plan { scroll-snap-align: start; }
-
-      /* Show Filters button; convert filters into a sheet */
-      #btnToggleFilters { display: inline-block; }
-      .filtersWrap {
-        display: none; /* hidden until opened as sheet */
-        position: fixed; left:0; right:0; bottom:0; z-index: 50; background:#0f1520;
-        border-top: 1px solid #1a2230; padding: 12px; box-shadow: 0 -12px 28px rgba(0,0,0,0.5);
-        border-top-left-radius: 12px; border-top-right-radius: 12px;
-        flex-direction: column; gap:10px;
-      }
-      .filtersWrap.open { display:flex; }
-      #filtersBackdrop.show { display:block; }
-
-      /* Courses: hide table, show cards */
-      .table-wrap { display: none; }
-      .cards { display: grid; grid-template-columns: 1fr; }
-
-      /* Day tabs + mobile schedule */
-      .day-tabs { display:flex; }
-      .schedule.desktop { display:none; }
-      .m-schedule { display:block; border:1px solid #1a2230; border-radius: 10px; overflow:hidden; background:#0f1520; }
-      .m-slot {
-        border-top: 1px dashed var(--grid-line); padding: 10px;
-      }
-      .m-slot:first-child { border-top: none; }
-      .m-slot-label { font-size: 12px; color:#9cb0c8; margin-bottom: 6px; }
-      .m-block {
-        border: 1px solid #31527b; border-radius: 8px; padding: 8px; background: linear-gradient(180deg, rgba(49, 115, 190, 0.35), rgba(36, 65, 109, 0.35));
-      }
-    }
-
-    /* Desktop-only */
-    #btnToggleFilters { display: none; }
-  </style>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header>
-    <h1>IUB Course Planner</h1>
-    <div class="sub">Read-only course list from backend • Plans saved locally</div>
+    <div class="brand">
+      <h1>IUB Course Planner</h1>
+      <div class="sub">Created with curiosity by Raiyan Bin Rais</div>
+    </div>
+    <div class="spacer"></div>
+    <div class="theme-toggle" title="Toggle light theme">
+      <span class="small">Dark</span>
+      <label class="switch" aria-label="Theme toggle">
+        <input type="checkbox" id="themeToggle" />
+        <span class="slider"></span>
+      </label>
+      <span class="small">Light</span>
+    </div>
   </header>
 
   <div class="container">
@@ -208,6 +28,12 @@
     <div class="panel courses" id="coursesPanel">
       <div class="body">
         <h2>Courses</h2>
+
+        <!-- Mobile-only helper text -->
+        <div class="mobile-hint mobile-only small">
+          Course list is really long, I'd suggest searching for specific courses instead of scrolling down manually.
+        </div>
+
         <!-- Top row: search + mobile Filters button -->
         <div class="toolbar">
           <input type="text" id="search" placeholder="Search course code/title/faculty" />
@@ -217,8 +43,11 @@
         <!-- Filters row (desktop inline; mobile bottom sheet) -->
         <div id="filtersBackdrop" aria-hidden="true"></div>
         <div class="filtersWrap" id="filtersWrap">
-          <select id="filterDay" aria-label="Filter by day">
-            <option value="">All days</option>
+          <select id="filterDay" aria-label="Filter by schedule">
+            <option value="">All schedules</option>
+            <option value="ST">ST (Sun–Tue)</option>
+            <option value="MW">MW (Mon–Wed)</option>
+            <option value="AR">AR (Sat–Thu)</option>
           </select>
           <select id="filterAvail" aria-label="Filter by availability">
             <option value="">Any availability</option>
@@ -228,7 +57,7 @@
           <button class="btn alt mobile-only" id="btnCloseFilters">Done</button>
         </div>
 
-        <div id="courseError" class="footnote" style="display:none; color:#ffb4b4;"></div>
+        <div id="courseError" class="footnote" style="display:none; color:#ff4d4f;"></div>
 
         <!-- Desktop: table -->
         <div class="table-wrap" id="tableWrap">
@@ -253,7 +82,7 @@
         <!-- Mobile: cards -->
         <div class="cards" id="courseCards" aria-live="polite"></div>
 
-        <div class="footnote">Dataset is managed by admins and cannot be modified by users.</div>
+        <div class="footnote">Course list is updated by me. However, the plans you make are saved locally in your browser (do not clear cache).</div>
       </div>
     </div>
 
@@ -273,7 +102,7 @@
           <button class="btn danger" id="btnDeletePlan">Delete</button>
         </div>
 
-        <div style="border-top:1px solid #1a2230; margin:10px 0"></div>
+        <div style="border-top:1px solid var(--border); margin:10px 0"></div>
 
         <div class="legend">
           <div class="pill">A: Sat</div>
@@ -314,7 +143,8 @@
   const DAY_KEYS = ['A','S','M','T','W','R'];
   const DAY_NAME_MAP = { A:'Sat', S:'Sun', M:'Mon', T:'Tue', W:'Wed', R:'Thu' };
   const DAY_MAP = Object.fromEntries(DAY_KEYS.map((k,i)=>[k,i]));
-  const STORAGE_PLANS = 'iub-plans-v4';
+  const STORAGE_PLANS = 'iub-plans-v5';
+  const STORAGE_THEME = 'iub-theme';
 
   // IUB discrete time slots
   const SLOTS = [
@@ -327,6 +157,13 @@
   ];
   const SLOT_HEIGHT = 100; // px per slot (desktop grid)
   const HEADER_OFFSET = 24; // px sticky day header height (desktop grid)
+
+  // Day groups for filter (ST/MW/AR). Single-day classes map into these.
+  const DAY_GROUPS = {
+    ST: ['S','T'],
+    MW: ['M','W'],
+    AR: ['A','R'],
+  };
 
   // ---------- State ----------
   let sections = []; // read-only list from backend (JSON)
@@ -374,6 +211,17 @@
       saveAll();
     }
   }
+  function applyThemeOnLoad() {
+    const saved = localStorage.getItem(STORAGE_THEME);
+    const theme = saved === 'light' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', theme);
+    $('#themeToggle').checked = theme === 'light';
+  }
+  function setTheme(isLight) {
+    const theme = isLight ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem(STORAGE_THEME, theme);
+  }
   function reindex() {
     sectionByKey.clear();
     for (const sec of sections) sectionByKey.set(keyOf(sec), sec);
@@ -408,6 +256,11 @@
       if (SLOTS[i].start === start && SLOTS[i].end === end) return i;
     }
     return -1;
+  }
+  function inDayGroup(sec, groupKey) {
+    const group = DAY_GROUPS[groupKey];
+    if (!group) return true;
+    return sec.timing.days.some(d => group.includes(d));
   }
 
   // ---------- Backend load ----------
@@ -461,14 +314,12 @@
 
   function filteredSections() {
     const q = ($('#search').value || '').toLowerCase();
-    const dayFilter = $('#filterDay').value || '';
+    const groupFilter = $('#filterDay').value || '';
     const availFilter = $('#filterAvail').value || '';
     return sections.filter(sec => {
       const hay = `${sec.course} ${sec.title} ${sec.faculty}`.toLowerCase();
       if (q && !hay.includes(q)) return false;
-      if (dayFilter) {
-        if (!sec.timing.days.includes(dayFilter)) return false;
-      }
+      if (groupFilter && !inDayGroup(sec, groupFilter)) return false;
       if (availFilter) {
         const { full } = seatStatus(sec);
         if (availFilter === 'open' && full) return false;
@@ -674,7 +525,7 @@
         label.textContent = slot.label;
         row.appendChild(label);
 
-        // Find item in this day and slot
+        // Items in this day and slot
         const inThisSlot = items.filter(s =>
           s.timing.days.includes(activeMobileDay) &&
           s.timing.start === slot.start &&
@@ -737,18 +588,8 @@
     }
   }
 
-  function renderFilters() {
-    // Days select (no Friday)
-    const sel = $('#filterDay');
-    const prev = sel.value;
-    sel.innerHTML = '<option value="">All days</option>' +
-      DAY_KEYS.map(k => `<option value="${k}">${k} (${DAY_NAME_MAP[k]})</option>`).join('');
-    if ([...sel.options].some(o => o.value === prev)) sel.value = prev;
-  }
-
   function renderAll() {
     renderPlans();
-    renderFilters();
     renderCourseTableOrCards();
     renderSchedule();
     renderPlanList();
@@ -832,6 +673,9 @@
     $('#btnToggleFilters').setAttribute('aria-expanded', 'false');
   };
 
+  // Theme toggle
+  $('#themeToggle').addEventListener('change', (e) => setTheme(e.target.checked));
+
   // Mobile breakpoint watcher
   mql.addEventListener('change', e => {
     isMobile = e.matches;
@@ -839,6 +683,13 @@
   });
 
   // ---------- Init ----------
+  (function init() {
+    const saved = localStorage.getItem(STORAGE_THEME);
+    const theme = saved === 'light' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', theme);
+    const t = document.getElementById('themeToggle');
+    if (t) t.checked = theme === 'light';
+  })();
   loadAll();
   loadSectionsFromBackend().then(renderAll);
 </script>
