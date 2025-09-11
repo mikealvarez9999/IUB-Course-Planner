@@ -7,20 +7,22 @@
 
   <!-- PWA: manifest + theme colors + Apple -->
   <link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials" />
-  <link rel="icon" type="image/x-icon" href="/icons/icon-round.png">
   <meta name="theme-color" content="#0b0f14" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#f3f4f6" media="(prefers-color-scheme: light)">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 
-  <link rel="icon" href="icons/favicon.svg" type="image/svg+xml" />
+  <!-- Favicons -->
+  <link rel="icon" href="icons/icon-round.png" type="image/png" />
+  
+
   <link rel="stylesheet" href="styles.css" />
 
   <!-- Google Analytics (GA4) - replace with your measurement ID -->
   <script>
     (function(){
-      const GA_MEASUREMENT_ID = 'G-DW57CD9V2F'; 
+      const GA_MEASUREMENT_ID = 'G-DW57CD9V2F'; // TODO: replace with your GA4 measurement ID
       if (!GA_MEASUREMENT_ID || GA_MEASUREMENT_ID === 'G-DW57CD9V2F') return;
       const s = document.createElement('script');
       s.async = true;
@@ -85,8 +87,8 @@
             <option value="AR">AR (Sat–Thu)</option>
           </select>
           <select id="filterAvail" aria-label="Filter by availability">
-            <option value="">Any Availability</option>
-            <option value="open">Seats Available</option>
+            <option value="">Any availability</option>
+            <option value="open">Open seats</option>
             <option value="full">Full</option>
           </select>
           <button class="btn alt mobile-only" id="btnCloseFilters">Done</button>
@@ -218,8 +220,7 @@
     const start = minutesFromHHMM(m[2]);
     const end = minutesFromHHMM(m[3]);
     if (!dayCodes.length || start == null || end == null) return null;
-    // normalized label without any leading/trailing spaces
-    const label = `${rawDays}: ${m[2].trim()}-${m[3].trim()}`;
+    const label = `${rawDays}: ${m[2].trim()}-${m[3].trim()}`; // normalized, no leading spaces
     return { days: dayCodes, start, end, label };
   }
   function keyOf(sec) { return `${sec.course}|${sec.section}|${sec.timing.label}|${(sec.faculty||'').trim()}`; }
@@ -236,7 +237,6 @@
     }
   }
   function updateThemeColorMeta(theme) {
-    // Keep the browser UI color in sync with the app theme
     let meta = document.querySelector('meta[name="theme-color"]:not([media])');
     const color = theme === 'light' ? '#f3f4f6' : '#0b0f14';
     if (!meta) {
@@ -343,6 +343,8 @@
     });
   }
 
+  function hhmm(n){ const h=String(Math.floor(n/60)).padStart(2,'0'); const m=String(n%60).padStart(2,'0'); return `${h}:${m}`; }
+
   function renderCourseTableOrCards() {
     const list = filteredSections();
     const tbody = $('#courseTbody');
@@ -426,6 +428,8 @@
     const k = keyOf(sec);
     if (!active.items.includes(k)) active.items.push(k);
     saveAll(); renderAll();
+    // Success toast: code, section, time only (no day letters)
+    showToast(`Added ${sec.course} Sec-${sec.section} ${hhmm(sec.timing.start)}-${hhmm(sec.timing.end)}`);
   }
 
   function renderSchedule() {
