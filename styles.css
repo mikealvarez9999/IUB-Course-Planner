@@ -164,33 +164,38 @@ html[data-theme="light"] .tag { color:#0f172a; background:#e8efff; border-color:
 html[data-theme="light"] .table th { color:#334155; background:#f3f4f6; }
 
 /* Desktop: fixed layout that fits the container (no horizontal overflow).
-   Make Title narrower; give Seats and Actions more room.
-   Keep Day/Time >= 170px and on one line. */
+   Day/Time >= 170px. Make Actions just wide enough for its text. */
 @media (min-width: 769px) {
   .table { table-layout: fixed; width: 100%; }
 
-  /* Percentage widths sum to 100% so it always fits.
-     Adjusted: Title narrowed, Seats/Actions widened. */
+  /* Column widths (percentages sum to 100%) */
   .table col.col-course  { width: 10%; }
   .table col.col-sec     { width: 6%; }
-  .table col.col-time    { width: 14%; }  /* see min-width below */
-  .table col.col-faculty { width: 23%; }
-  .table col.col-title   { width: 17%; }  /* narrowed */
-  .table col.col-seats   { width: 8%; }   /* wider */
-  .table col.col-actions { width: 22%; }  /* wider */
+  .table col.col-time    { width: 16%; }  /* see min-width below */
+  .table col.col-faculty { width: 33%; }
+  .table col.col-title   { width: 15%; }  /* narrowed to make room for seats/actions */
+  .table col.col-seats   { width: 8%; }
+  .table col.col-actions { width: 12%; }  /* narrower: just enough for the button text */
 
-  /* Guard minimums so key columns stay usable */
+  /* Guards */
   .table th:nth-child(3),
-  .table td:nth-child(3) { min-width: 170px; }   /* Day/Time */
+  .table td:nth-child(3) { min-width: 170px; } /* Day/Time minimum */
   .table th:nth-child(6),
-  .table td:nth-child(6) { min-width: 72px; }    /* Seats */
+  .table td:nth-child(6) { min-width: 72px; }  /* Seats numeric */
   .table th:nth-child(7),
-  .table td:nth-child(7) { min-width: 120px; }   /* Actions */
+  .table td:nth-child(7) { min-width: 120px; } /* Actions min so text stays on one line */
 
   /* Keep the time chip on one line */
   .table td:nth-child(3) .tag {
     white-space: nowrap;
     display: inline-block;
+  }
+
+  /* Make the action button size to its text (no stretching) */
+  .table td:nth-child(7) .btn {
+    width: auto;
+    white-space: nowrap;
+    min-width: 0;
   }
 
   /* Compact columns single-line with ellipsis if needed */
@@ -214,12 +219,6 @@ html[data-theme="light"] .table th { color:#334155; background:#f3f4f6; }
   .table td:nth-child(5) {
     white-space: normal;
     word-break: break-word;
-  }
-
-  /* Optional: make the action button fill its cell nicely */
-  .table td:nth-child(7) .btn {
-    width: 100%;
-    min-width: 110px;
   }
 }
 
