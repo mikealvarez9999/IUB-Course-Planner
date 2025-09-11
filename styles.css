@@ -25,7 +25,7 @@
   --radius: 10px;
 }
 
-/* Light theme overrides with high-contrast choices */
+/* Light theme overrides */
 html[data-theme="light"] {
   --bg-grad-top: #f3f4f6;
   --bg-grad-bottom: #eef2f7;
@@ -33,7 +33,7 @@ html[data-theme="light"] {
   --panel: #ffffff;
   --border: #e5e7eb;
 
-  --muted: #334155;   /* readable */
+  --muted: #334155;
   --text: #0f172a;
 
   --accent: #2563eb;
@@ -53,7 +53,7 @@ body {
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji";
 }
 
-/* Header: opaque, sticky, compactable */
+/* Header */
 header {
   position: sticky; top: 0; z-index: 100;
   display:flex; gap:12px; align-items:center; flex-wrap:wrap;
@@ -74,7 +74,7 @@ header {
   display:inline-flex; align-items:center; justify-content:center;
   width: 54px; height: 28px; border-radius: 999px;
   border: 1px solid var(--border);
-  background: #0f172a; /* dark track default */
+  background: #0f172a;
   color: #cbd5e1;
   cursor: pointer;
   transition: background .2s ease, border-color .2s ease, width .2s ease, height .2s ease;
@@ -93,7 +93,7 @@ html[data-theme="light"] .theme-switch { background: #f8fafc; color:#1f2937; }
 }
 html[data-theme="light"] .theme-switch .ts-knob { transform: translateX(26px); }
 
-/* Desktop layout */
+/* Layout */
 .container {
   display: grid; grid-template-columns: 1fr 600px; gap: 16px; padding: 16px;
 }
@@ -156,39 +156,37 @@ html[data-theme="light"] .tag { color:#0f172a; background:#e8efff; border-color:
 .wrap { word-break: break-word; }
 .footnote { color: var(--muted); font-size: var(--font-small); margin-top: 8px; }
 
-/* Desktop table */
+/* Desktop table shell */
 .table-wrap { max-height: 700px; overflow: auto; border:1px solid var(--border); border-radius:8px; }
 .table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .table th, .table td { border-bottom: 1px solid var(--border); padding: 8px; vertical-align: top; }
 .table th { color: #93a6bf; text-align: left; position: sticky; top: 0; background: #101722; z-index: 1; }
 html[data-theme="light"] .table th { color:#334155; background:#f3f4f6; }
 
-/* Disable auto table sizing on desktop: use fixed layout + fixed column widths */
+/* Desktop: fixed layout with proportioned widths that fit the container.
+   Day/Time column keeps at least 170px and never wraps. */
 @media (min-width: 769px) {
-  /* Turn on fixed table layout so widths come from colgroup, not content */
-  .table { table-layout: fixed; }
+  .table { table-layout: fixed; width: 100%; }
 
-  /* Fixed widths (px) per column via colgroup
-     Adjust if needed; horizontal scroll will appear if total > container width. */
-  .table col.col-course  { width: 110px; } /* e.g., ANT101 */
-  .table col.col-sec     { width: 60px; }  /* numeric */
-  .table col.col-time    { width: 180px; } /* ensure >= 170px */
-  .table col.col-faculty { width: 260px; }
-  .table col.col-title   { width: 360px; }
-  .table col.col-seats   { width: 80px; }  /* '35/35' */
-  .table col.col-actions { width: 140px; } /* 'Add to plan' button */
+  /* Use percentage widths that sum to 100% so the table always fits.
+     Day/Time has a min-width guard to avoid wrapping. */
+  .table col.col-course  { width: 10%; }
+  .table col.col-sec     { width: 6%; }
+  .table col.col-time    { width: 14%; }   /* + min-width below */
+  .table col.col-faculty { width: 24%; }
+  .table col.col-title   { width: 32%; }
+  .table col.col-seats   { width: 6%; }
+  .table col.col-actions { width: 8%; }
 
-  /* Enforce the Day/Time minimum explicitly as well */
+  /* Enforce Day/Time minimum and prevent wrap */
   .table th:nth-child(3),
   .table td:nth-child(3) { min-width: 170px; }
-
-  /* Keep the time chip on one line */
   .table td:nth-child(3) .tag {
     white-space: nowrap;
     display: inline-block;
   }
 
-  /* Compact columns: avoid multi-line except where we want wrapping */
+  /* Keep compact columns single-line with ellipsis as needed */
   .table th:nth-child(1),
   .table td:nth-child(1),
   .table th:nth-child(2),
@@ -204,7 +202,7 @@ html[data-theme="light"] .table th { color:#334155; background:#f3f4f6; }
     text-overflow: ellipsis;
   }
 
-  /* Allow Faculty and Title to wrap within their fixed widths */
+  /* Allow Faculty and Title to wrap within their percentage columns */
   .table td:nth-child(4),
   .table td:nth-child(5) {
     white-space: normal;
@@ -290,13 +288,12 @@ html[data-theme="light"] #toast { color:#0f172a; background:#f8fafc; border-colo
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-  /* Header: subtitle below title; compact on scroll shrinks title and switch */
   .brand { flex-direction: column; align-items: flex-start; gap: 2px; }
   header.compact { padding: 8px 12px; box-shadow: 0 1px 8px rgba(0,0,0,0.25); }
   header.compact .brand { flex-direction: row; align-items: center; gap: 8px; }
   header.compact .brand .sub { display: none; }
-  header.compact .brand h1 { font-size: 18px; } /* shrink title */
-  header.compact .theme-switch { width: 48px; height: 26px; } /* shrink toggle */
+  header.compact .brand h1 { font-size: 18px; }
+  header.compact .theme-switch { width: 48px; height: 26px; }
   header.compact .theme-switch .ts-knob { top: 2px; left: 2px; width: 22px; height: 22px; }
   html[data-theme="light"] header.compact .theme-switch .ts-knob { transform: translateX(24px); }
 
@@ -304,11 +301,9 @@ html[data-theme="light"] #toast { color:#0f172a; background:#f8fafc; border-colo
   #planPanel { order: 1; }
   #coursesPanel { order: 2; }
 
-  /* Plans: horizontal scroll with snap */
   .plans { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; scroll-snap-type: x mandatory; }
   .plan { scroll-snap-align: start; }
 
-  /* Show Filters button; convert filters into a sheet */
   #btnToggleFilters { display: inline-block; }
   .filtersWrap {
     display: none; position: fixed; left:0; right:0; bottom:0; z-index: 50; background: var(--panel);
@@ -322,11 +317,9 @@ html[data-theme="light"] #toast { color:#0f172a; background:#f8fafc; border-colo
   .mobile-only { display:inline-flex; }
   .mobile-hint { display:block; }
 
-  /* Courses: hide table, show cards */
   .table-wrap { display: none; }
   .cards { display: grid; grid-template-columns: 1fr; }
 
-  /* Day tabs + mobile schedule */
   .day-tabs { display:flex; gap:6px; flex-wrap:nowrap; overflow:auto; padding-bottom: 6px; margin-top: -4px; }
   .day-tab {
     padding: 6px 10px; border-radius: 999px; border:1px solid #2a3347; background:#101827; color:#cfe6ff; white-space: nowrap;
