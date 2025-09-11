@@ -246,10 +246,15 @@ html[data-theme="light"] #toast { color:#0f172a; background:#f8fafc; border-colo
   header.compact .theme-switch { width: 48px; height: 26px; } /* shrink toggle */
   header.compact .theme-switch .ts-knob { top: 2px; left: 2px; width: 22px; height: 22px; }
   html[data-theme="light"] header.compact .theme-switch .ts-knob { transform: translateX(24px); }
+  /* Keep the +20px visual breathing room and enforce a sensible min width */
   .table th:nth-child(3),
   .table td:nth-child(3) {
-    /* default cell padding is 8px; add 20px more on the right side */
     padding-right: calc(8px + 20px);
+    min-width: 12.5ch; /* fits strings like 'MW: 1120-1250' on one line */
+  }
+  /* Ensure the time chip never wraps even around hyphens */
+  .table td:nth-child(3) .tag {
+    white-space: nowrap;
   }
   .container { grid-template-columns: 1fr; }
   #planPanel { order: 1; }
