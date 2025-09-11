@@ -7,20 +7,27 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header>
+  <header id="appHeader">
     <div class="brand">
       <h1>IUB Course Planner</h1>
       <div class="sub">Created with curiosity by Raiyan Bin Rais</div>
     </div>
     <div class="spacer"></div>
-    <div class="theme-toggle" title="Toggle light theme">
-      <span class="small">Dark</span>
-      <label class="switch" aria-label="Theme toggle">
-        <input type="checkbox" id="themeToggle" />
-        <span class="slider"></span>
-      </label>
-      <span class="small">Light</span>
-    </div>
+    <!-- Theme toggle: icon-only circular button -->
+    <button id="themeToggleBtn" class="theme-btn" aria-label="Toggle theme" title="Toggle theme">
+      <!-- Moon icon (shown in dark) -->
+      <span class="icon icon-moon" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 1 0 9.79 9.79z"></path>
+        </svg>
+      </span>
+      <!-- Sun icon (shown in light) -->
+      <span class="icon icon-sun" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M6.76 4.84l-1.8-1.79L3.17 4.84l1.79 1.79 1.8-1.79zM1 13h3v-2H1v2zm10 10h2v-3h-2v3zm9.83-3.16l-1.79-1.79-1.8 1.79 1.8 1.79 1.79-1.79zM20 11v2h3v-2h-3zM12 1h-2v3h2V1zm6.24 3.84l1.79-1.79-1.79-1.79-1.8 1.79 1.8 1.79zM12 6a6 6 0 100 12 6 6 0 000-12zM4.84 17.24l-1.79 1.79 1.79 1.79 1.79-1.79-1.79-1.79z"></path>
+        </svg>
+      </span>
+    </button>
   </header>
 
   <div class="container">
@@ -143,7 +150,7 @@
   const DAY_KEYS = ['A','S','M','T','W','R'];
   const DAY_NAME_MAP = { A:'Sat', S:'Sun', M:'Mon', T:'Tue', W:'Wed', R:'Thu' };
   const DAY_MAP = Object.fromEntries(DAY_KEYS.map((k,i)=>[k,i]));
-  const STORAGE_PLANS = 'iub-plans-v5';
+  const STORAGE_PLANS = 'iub-plans-v6';
   const STORAGE_THEME = 'iub-theme';
 
   // IUB discrete time slots
@@ -159,11 +166,7 @@
   const HEADER_OFFSET = 24; // px sticky day header height (desktop grid)
 
   // Day groups for filter (ST/MW/AR). Single-day classes map into these.
-  const DAY_GROUPS = {
-    ST: ['S','T'],
-    MW: ['M','W'],
-    AR: ['A','R'],
-  };
+  const DAY_GROUPS = { ST: ['S','T'], MW: ['M','W'], AR: ['A','R'] };
 
   // ---------- State ----------
   let sections = []; // read-only list from backend (JSON)
@@ -176,109 +179,77 @@
 
   // ---------- Utilities ----------
   const $ = sel => document.querySelector(sel);
-  function minutesFromHHMM(s) {
-    const m = s.match(/(\d{2})(\d{2})/);
-    if (!m) return null;
-    return parseInt(m[1],10)*60 + parseInt(m[2],10);
-  }
+  function minutesFromHHMM(s) { const m = s.match(/(\d{2})(\d{2})/); if (!m) return null; return parseInt(m[1],10)*60 + parseInt(m[2],10); }
   function parseDaysTime(str) {
     const m = (str||'').trim().match(/^([A-Z]+):?\s*(\d{3,4})-(\d{3,4})$/i);
     if (!m) return null;
-    const dayCodes = m[1].split('').filter(d => DAY_KEYS.includes(d)); // drop Friday and unknowns
-    const start = minutesFromHHMM(m[2]);
-    const end = minutesFromHHMM(m[3]);
+    const dayCodes = m[1].split('').filter(d => DAY_KEYS.includes(d));
+    const start = minutesFromHHMM(m[2]); const end = minutesFromHHMM(m[3]);
     if (start == null || end == null) return null;
-    if (dayCodes.length === 0) return null; // e.g., only Friday -> drop
+    if (dayCodes.length === 0) return null;
     return { days: dayCodes, start, end, label: `${m[1]}: ${m[2]}-${m[3]}` };
   }
-  function keyOf(sec) {
-    return `${sec.course}|${sec.section}|${sec.timing.label}|${(sec.faculty||'').trim()}`;
-  }
-  function saveAll() {
-    localStorage.setItem(STORAGE_PLANS, JSON.stringify({ plans, activePlanId }));
-  }
+  function keyOf(sec) { return `${sec.course}|${sec.section}|${sec.timing.label}|${(sec.faculty||'').trim()}`; }
+  function saveAll() { localStorage.setItem(STORAGE_PLANS, JSON.stringify({ plans, activePlanId })); }
   function loadAll() {
-    try {
-      const p = JSON.parse(localStorage.getItem(STORAGE_PLANS) || '{}');
-      if (Array.isArray(p.plans)) plans = p.plans;
-      if (p.activePlanId) activePlanId = p.activePlanId;
-    } catch {}
-    // Default Plan A for first-time users
+    try { const p = JSON.parse(localStorage.getItem(STORAGE_PLANS) || '{}'); if (Array.isArray(p.plans)) plans = p.plans; if (p.activePlanId) activePlanId = p.activePlanId; } catch {}
     if (!Array.isArray(plans) || plans.length === 0) {
       const id = 'p_' + Math.random().toString(36).slice(2);
-      plans = [{ id, name: 'Plan A', items: [] }];
-      activePlanId = id;
-      saveAll();
+      plans = [{ id, name: 'Plan A', items: [] }]; activePlanId = id; saveAll();
     }
   }
   function applyThemeOnLoad() {
     const saved = localStorage.getItem(STORAGE_THEME);
     const theme = saved === 'light' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', theme);
-    $('#themeToggle').checked = theme === 'light';
+    syncThemeButton(theme);
   }
   function setTheme(isLight) {
     const theme = isLight ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem(STORAGE_THEME, theme);
+    syncThemeButton(theme);
   }
-  function reindex() {
-    sectionByKey.clear();
-    for (const sec of sections) sectionByKey.set(keyOf(sec), sec);
+  function syncThemeButton(theme) {
+    const btn = $('#themeToggleBtn');
+    if (!btn) return;
+    const isLight = theme === 'light';
+    btn.setAttribute('aria-label', isLight ? 'Switch to dark theme' : 'Switch to light theme');
+    btn.title = 'Toggle theme';
   }
-  function overlaps(a, b) {
-    return a.start < b.end && b.start < a.end;
-  }
+  function reindex() { sectionByKey.clear(); for (const sec of sections) sectionByKey.set(keyOf(sec), sec); }
+  function overlaps(a, b) { return a.start < b.end && b.start < a.end; }
   function findConflictingWith(items, candidate) {
     for (const s of items) {
       const daySet = new Set(s.timing.days);
       const anyDay = candidate.timing.days.some(d => daySet.has(d));
       if (!anyDay) continue;
-      if (overlaps({start:s.timing.start, end:s.timing.end}, {start:candidate.timing.start, end:candidate.timing.end})) {
-        return s;
-      }
+      if (overlaps({start:s.timing.start, end:s.timing.end}, {start:candidate.timing.start, end:candidate.timing.end})) return s;
     }
     return null;
   }
-  function seatStatus(sec) {
-    const open = Math.max(sec.capacity - sec.enrolled, 0);
-    return { open, full: open === 0 };
-  }
+  function seatStatus(sec) { const open = Math.max(sec.capacity - sec.enrolled, 0); return { open, full: open === 0 }; }
   function showToast(msg) {
-    const t = $('#toast');
-    t.textContent = msg;
-    t.classList.add('show');
-    clearTimeout(showToast._timer);
+    const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(showToast._timer);
     showToast._timer = setTimeout(()=>t.classList.remove('show'), 2800);
   }
-  function slotIndexFor(start, end) {
-    for (let i=0;i<SLOTS.length;i++) {
-      if (SLOTS[i].start === start && SLOTS[i].end === end) return i;
-    }
-    return -1;
-  }
-  function inDayGroup(sec, groupKey) {
-    const group = DAY_GROUPS[groupKey];
-    if (!group) return true;
-    return sec.timing.days.some(d => group.includes(d));
-  }
+  function slotIndexFor(start, end) { for (let i=0;i<SLOTS.length;i++) { if (SLOTS[i].start===start && SLOTS[i].end===end) return i; } return -1; }
+  function inDayGroup(sec, groupKey) { const group = DAY_GROUPS[groupKey]; if (!group) return true; return sec.timing.days.some(d => group.includes(d)); }
 
   // ---------- Backend load ----------
   async function loadSectionsFromBackend() {
-    const tbody = $('#courseTbody');
-    const errorBox = $('#courseError');
+    const tbody = $('#courseTbody'); const errorBox = $('#courseError');
     try {
       const resp = await fetch('data/courses.json', { cache: 'no-store' });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       sections = (data || []).map(row => {
-        const tParsed = parseDaysTime(row.days_time);
-        if (!tParsed) return null;
+        const tParsed = parseDaysTime(row.days_time); if (!tParsed) return null;
         return {
           course: row.course || 'UNKNOWN',
           section: parseInt(row.section || '0', 10) || 0,
           title: row.title || '',
-          faculty: (row.faculty || '').toString(), // supports "00 TBA TBA"
+          faculty: (row.faculty || '').toString(),
           timing: tParsed,
           enrolled: parseInt(row.enrolled || '0', 10) || 0,
           capacity: parseInt(row.capacity || '0', 10) || 0,
@@ -286,11 +257,9 @@
           cat: row.cat || ''
         };
       }).filter(Boolean);
-      reindex();
-      errorBox.style.display = 'none';
+      reindex(); errorBox.style.display = 'none';
     } catch (e) {
-      sections = [];
-      reindex();
+      sections = []; reindex();
       errorBox.textContent = 'Failed to load courses. Please try again later.';
       errorBox.style.display = 'block';
       if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="small">No courses available.</td></tr>';
@@ -299,8 +268,7 @@
 
   // ---------- Rendering ----------
   function renderPlans() {
-    const cont = $('#plans');
-    cont.innerHTML = '';
+    const cont = $('#plans'); cont.innerHTML = '';
     for (const p of plans) {
       const btn = document.createElement('button');
       btn.className = 'plan' + (p.id === activePlanId ? ' active' : '');
@@ -403,7 +371,7 @@
     const existingItems = active.items.map(k => sectionByKey.get(k)).filter(Boolean);
     // One section per course
     if (existingItems.some(x => x.course === sec.course)) {
-      showToast(`You already have a section of ${sec.course} in this plan.`);
+      showToast(`You can't choose two sections of the same course (${sec.course}). Remove the other section first.`);
       return;
     }
     // Prevent conflicts
@@ -595,6 +563,15 @@
     renderPlanList();
   }
 
+  // ---------- Header compact behavior (mobile) ----------
+  const headerEl = $('#appHeader');
+  function updateHeaderCompact() {
+    if (!headerEl) return;
+    const shouldCompact = isMobile && window.scrollY > 20;
+    headerEl.classList.toggle('compact', shouldCompact);
+  }
+  window.addEventListener('scroll', updateHeaderCompact, { passive: true });
+
   // ---------- Events ----------
   $('#btnQuickAddPlan').onclick = () => {
     const id = 'p_' + Math.random().toString(36).slice(2);
@@ -673,25 +650,23 @@
     $('#btnToggleFilters').setAttribute('aria-expanded', 'false');
   };
 
-  // Theme toggle
-  $('#themeToggle').addEventListener('change', (e) => setTheme(e.target.checked));
+  // Theme toggle (icon button)
+  $('#themeToggleBtn').addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme') || 'dark';
+    setTheme(current !== 'light');
+  });
 
   // Mobile breakpoint watcher
   mql.addEventListener('change', e => {
     isMobile = e.matches;
+    updateHeaderCompact();
     renderAll();
   });
 
   // ---------- Init ----------
-  (function init() {
-    const saved = localStorage.getItem(STORAGE_THEME);
-    const theme = saved === 'light' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', theme);
-    const t = document.getElementById('themeToggle');
-    if (t) t.checked = theme === 'light';
-  })();
+  applyThemeOnLoad();
   loadAll();
-  loadSectionsFromBackend().then(renderAll);
+  loadSectionsFromBackend().then(() => { renderAll(); updateHeaderCompact(); });
 </script>
 </body>
 </html>
