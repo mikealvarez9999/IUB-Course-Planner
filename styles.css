@@ -163,30 +163,37 @@ html[data-theme="light"] .tag { color:#0f172a; background:#e8efff; border-color:
 .table th { color: #93a6bf; text-align: left; position: sticky; top: 0; background: #101722; z-index: 1; }
 html[data-theme="light"] .table th { color:#334155; background:#f3f4f6; }
 
-/* Desktop: fixed layout with proportioned widths that fit the container.
-   Day/Time column keeps at least 170px and never wraps. */
+/* Desktop: fixed layout that fits the container (no horizontal overflow).
+   Make Title narrower; give Seats and Actions more room.
+   Keep Day/Time >= 170px and on one line. */
 @media (min-width: 769px) {
   .table { table-layout: fixed; width: 100%; }
 
-  /* Use percentage widths that sum to 100% so the table always fits.
-     Day/Time has a min-width guard to avoid wrapping. */
+  /* Percentage widths sum to 100% so it always fits.
+     Adjusted: Title narrowed, Seats/Actions widened. */
   .table col.col-course  { width: 10%; }
   .table col.col-sec     { width: 6%; }
-  .table col.col-time    { width: 14%; }   /* + min-width below */
-  .table col.col-faculty { width: 24%; }
-  .table col.col-title   { width: 32%; }
-  .table col.col-seats   { width: 6%; }
-  .table col.col-actions { width: 8%; }
+  .table col.col-time    { width: 14%; }  /* see min-width below */
+  .table col.col-faculty { width: 23%; }
+  .table col.col-title   { width: 17%; }  /* narrowed */
+  .table col.col-seats   { width: 8%; }   /* wider */
+  .table col.col-actions { width: 22%; }  /* wider */
 
-  /* Enforce Day/Time minimum and prevent wrap */
+  /* Guard minimums so key columns stay usable */
   .table th:nth-child(3),
-  .table td:nth-child(3) { min-width: 170px; }
+  .table td:nth-child(3) { min-width: 170px; }   /* Day/Time */
+  .table th:nth-child(6),
+  .table td:nth-child(6) { min-width: 72px; }    /* Seats */
+  .table th:nth-child(7),
+  .table td:nth-child(7) { min-width: 120px; }   /* Actions */
+
+  /* Keep the time chip on one line */
   .table td:nth-child(3) .tag {
     white-space: nowrap;
     display: inline-block;
   }
 
-  /* Keep compact columns single-line with ellipsis as needed */
+  /* Compact columns single-line with ellipsis if needed */
   .table th:nth-child(1),
   .table td:nth-child(1),
   .table th:nth-child(2),
@@ -202,11 +209,17 @@ html[data-theme="light"] .table th { color:#334155; background:#f3f4f6; }
     text-overflow: ellipsis;
   }
 
-  /* Allow Faculty and Title to wrap within their percentage columns */
+  /* Allow Faculty and Title to wrap within their columns */
   .table td:nth-child(4),
   .table td:nth-child(5) {
     white-space: normal;
     word-break: break-word;
+  }
+
+  /* Optional: make the action button fill its cell nicely */
+  .table td:nth-child(7) .btn {
+    width: 100%;
+    min-width: 110px;
   }
 }
 
