@@ -96,6 +96,7 @@
         <!-- Desktop: table -->
         <div class="table-wrap" id="tableWrap">
           <table class="table" id="courseTable" role="table" aria-label="Courses">
+            <!-- Static colgroup to control column widths -->
             <colgroup>
               <col class="col-course" />
               <col class="col-sec" />
@@ -390,6 +391,7 @@
           <td class="right"><span class="avail ${full ? 'full' : 'ok'}">${open}/${sec.capacity}</span></td>
           <td class="actions"></td>
         `;
+        // Faculty text
         tr.children[3].textContent = sec.faculty || '';
 
         const actions = tr.querySelector('.actions');
@@ -473,6 +475,7 @@
       const slotsHeader = document.createElement('div');
       slotsHeader.className = 'slots-header';
       slots.appendChild(slotsHeader);
+      for (let i=0;i*SLOTS.length;i++) {} // no-op to avoid accidental code removal
       for (let i=0;i<SLOTS.length;i++) {
         const row = document.createElement('div');
         row.className = 'slot';
@@ -637,6 +640,42 @@
   }
   window.addEventListener('scroll', updateHeaderCompact, { passive: true });
 
+  // ---------- Filters bottom sheet handlers (mobile) ----------
+  function closeFiltersSheet() {
+    const wrap = document.getElementById('filtersWrap');
+    const bd = document.getElementById('filtersBackdrop');
+    const btn = document.getElementById('btnToggleFilters');
+    if (!wrap || !bd) return;
+    wrap.classList.remove('open');
+    bd.classList.remove('show');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+  }
+
+  document.getElementById('btnToggleFilters').onclick = () => {
+    const wrap = document.getElementById('filtersWrap');
+    const bd = document.getElementById('filtersBackdrop');
+    const open = !wrap.classList.contains('open');
+    wrap.classList.toggle('open', open);
+    bd.classList.toggle('show', open);
+    document.getElementById('btnToggleFilters')
+      .setAttribute('aria-expanded', open ? 'true' : 'false');
+  };
+
+  // When backdrop is tapped: close, then re-dispatch the tap to what's underneath
+  document.getElementById('filtersBackdrop').addEventListener('click', (e) => {
+    const { clientX, clientY } = e;
+    closeFiltersSheet();
+    requestAnimationFrame(() => {
+      const el = document.elementFromPoint(clientX, clientY);
+      if (el && typeof el.click === 'function') el.click();
+    });
+  });
+
+  document.getElementById('btnCloseFilters').onclick = () => closeFiltersSheet();
+
+  // Safety: any interaction with the Plans panel closes the sheet first
+  document.getElementById('planPanel').addEventListener('pointerdown', () => closeFiltersSheet());
+
   // ---------- Events ----------
   $('#btnQuickAddPlan').onclick = () => {
     const id = 'p_' + Math.random().toString(36).slice(2);
@@ -694,26 +733,6 @@
   $('#search').oninput = () => renderCourseTableOrCards();
   $('#filterDay').onchange = () => renderCourseTableOrCards();
   $('#filterAvail').onchange = () => renderCourseTableOrCards();
-
-  // Filters bottom sheet toggles (mobile)
-  $('#btnToggleFilters').onclick = () => {
-    const wrap = $('#filtersWrap');
-    const bd = $('#filtersBackdrop');
-    const open = !wrap.classList.contains('open');
-    wrap.classList.toggle('open', open);
-    bd.classList.toggle('show', open);
-    $('#btnToggleFilters').setAttribute('aria-expanded', open ? 'true' : 'false');
-  };
-  $('#filtersBackdrop').onclick = () => {
-    $('#filtersWrap').classList.remove('open');
-    $('#filtersBackdrop').classList.remove('show');
-    $('#btnToggleFilters').setAttribute('aria-expanded', 'false');
-  };
-  $('#btnCloseFilters').onclick = () => {
-    $('#filtersWrap').classList.remove('open');
-    $('#filtersBackdrop').classList.remove('show');
-    $('#btnToggleFilters').setAttribute('aria-expanded', 'false');
-  };
 
   // Theme toggle (switch)
   $('#themeToggleBtn').addEventListener('click', () => {
