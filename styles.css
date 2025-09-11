@@ -61,7 +61,7 @@ header {
   transition: padding .2s ease, box-shadow .2s ease;
 }
 .brand { display:flex; align-items:baseline; gap:10px; transition: gap .2s ease; }
-@media (min-width: 769px) { .brand { gap: 18px; } } /* more space between title and caption on desktop */
+@media (min-width: 769px) { .brand { gap: 24px; } } /* more space between title and caption on desktop */
 .brand h1 { font-size: var(--font-title); margin: 0; letter-spacing: 0.2px; }
 .brand .sub { color: var(--muted); font-size: var(--font-small); }
 .spacer { flex: 1; }
@@ -111,7 +111,7 @@ html[data-theme="light"] input[type="text"], html[data-theme="light"] select { b
 /* Filters row */
 .filtersWrap { display:flex; gap:8px; align-items:center; }
 .filtersWrap select { width: auto; min-width: 220px; } /* inline on desktop */
-@media (min-width: 769px) { .filtersWrap { margin-bottom: 10px; } } /* space between filters and table */
+@media (min-width: 769px) { .filtersWrap { margin-bottom: 12px; } } /* space between filters and table */
 
 /* Buttons */
 .btn {
@@ -148,13 +148,17 @@ html[data-theme="light"] .plan.active { border-color:#3b82f6; color: var(--text)
 .table th { color: #93a6bf; text-align: left; position: sticky; top: 0; background: #101722; z-index: 1; }
 html[data-theme="light"] .table th { color:#334155; background:#f3f4f6; }
 
-/* Desktop column widths: widen Days/Time, narrow Title */
+/* Desktop column widths:
+   - Section (2) stays narrow
+   - Days/Time (3) wider
+   - Title (5) a bit narrower */
 @media (min-width: 769px) {
-  .table th:nth-child(3), .table td:nth-child(3) { min-width: 160px; } /* Days/Time wider */
-  .table th:nth-child(5), .table td:nth-child(5) { width: 220px; }    /* Title a bit narrower */
+  .table th:nth-child(2), .table td:nth-child(2) { width: 64px; }
+  .table th:nth-child(3), .table td:nth-child(3) { width: 200px; }
+  .table th:nth-child(5), .table td:nth-child(5) { width: 200px; }
 }
 
-/* Mobile course cards (restored) */
+/* Mobile course cards */
 .cards { display: none; gap: 10px; }
 .card {
   border: 1px solid var(--border); border-radius: var(--radius); background: #0f1520; padding: 10px; display: grid; gap: 6px;
