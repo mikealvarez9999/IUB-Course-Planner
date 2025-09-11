@@ -4,7 +4,34 @@
   <meta charset="utf-8" />
   <title>IUB Course Planner</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- PWA: manifest + theme colors + Apple -->
+  <link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials" />
+  <meta name="theme-color" content="#0b0f14" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f3f4f6" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+
+  <link rel="icon" href="icons/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="styles.css" />
+
+  <!-- Google Analytics (GA4) - replace with your measurement ID -->
+  <script>
+    (function(){
+      const GA_MEASUREMENT_ID = 'G-DW57CD9V2F'; 
+      if (!GA_MEASUREMENT_ID || GA_MEASUREMENT_ID === 'G-DW57CD9V2F') return;
+      const s = document.createElement('script');
+      s.async = true;
+      s.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA_MEASUREMENT_ID;
+      document.head.appendChild(s);
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){ dataLayer.push(arguments); }
+      window.gtag = gtag;
+      gtag('js', new Date());
+      gtag('config', GA_MEASUREMENT_ID, { anonymize_ip: true, transport_type: 'beacon' });
+    })();
+  </script>
 </head>
 <body>
   <header id="appHeader">
@@ -57,8 +84,8 @@
             <option value="AR">AR (Sat–Thu)</option>
           </select>
           <select id="filterAvail" aria-label="Filter by availability">
-            <option value="">Any availability</option>
-            <option value="open">Open seats</option>
+            <option value="">Any Availability</option>
+            <option value="open">Seats Available</option>
             <option value="full">Full</option>
           </select>
           <button class="btn alt mobile-only" id="btnCloseFilters">Done</button>
@@ -152,23 +179,22 @@
   const STORAGE_PLANS = 'iub-plans-v7';
   const STORAGE_THEME = 'iub-theme';
 
-  // IUB discrete time slots
+  // Time slots
   const SLOTS = [
-    { start: 8*60,        end: 9*60+30,  label: '08:00-09:30' },
-    { start: 9*60+40,     end: 11*60+10, label: '09:40-11:10' },
-    { start: 11*60+20,    end: 12*60+50, label: '11:20-12:50' },
-    { start: 13*60,       end: 14*60+30, label: '13:00-14:30' },
-    { start: 14*60+40,    end: 16*60+10, label: '14:40-16:10' },
-    { start: 16*60+20,    end: 17*60+50, label: '16:20-17:50' },
+    { start: 8*60, end: 9*60+30,  label: '08:00-09:30' },
+    { start: 9*60+40, end: 11*60+10, label: '09:40-11:10' },
+    { start: 11*60+20, end: 12*60+50, label: '11:20-12:50' },
+    { start: 13*60, end: 14*60+30, label: '13:00-14:30' },
+    { start: 14*60+40, end: 16*60+10, label: '14:40-16:10' },
+    { start: 16*60+20, end: 17*60+50, label: '16:20-17:50' },
   ];
   const SLOT_HEIGHT = 100;
   const HEADER_OFFSET = 24;
-
   const DAY_GROUPS = { ST: ['S','T'], MW: ['M','W'], AR: ['A','R'] };
 
   // ---------- State ----------
   let sections = [];
-  let plans = [];    // [{id,name,items:[sectionKey]}]
+  let plans = [];
   let activePlanId = null;
   const sectionByKey = new Map();
   let activeMobileDay = 'S';
@@ -178,12 +204,12 @@
   // ---------- Utilities ----------
   const $ = sel => document.querySelector(sel);
   function minutesFromHHMM(s) {
-    const m = s.match(/^\s*(\d{2})(\d{2})\s*$/);
+    const m = (s||'').match(/^\s*(\d{2})(\d{2})\s*$/);
     if (!m) return null;
     return parseInt(m[1],10)*60 + parseInt(m[2],10);
   }
   function parseDaysTime(str) {
-    const src = (str || '').trim(); // remove any leading/trailing spaces from JSON
+    const src = (str || '').trim();
     const m = src.match(/^([A-Z]+)\s*:\s*(\d{3,4})\s*-\s*(\d{3,4})$/i);
     if (!m) return null;
     const rawDays = (m[1] || '').trim().toUpperCase();
@@ -191,16 +217,12 @@
     const start = minutesFromHHMM(m[2]);
     const end = minutesFromHHMM(m[3]);
     if (!dayCodes.length || start == null || end == null) return null;
-    // normalized label with no leading space
+    // normalized label without any leading/trailing spaces
     const label = `${rawDays}: ${m[2].trim()}-${m[3].trim()}`;
     return { days: dayCodes, start, end, label };
   }
-  function keyOf(sec) {
-    return `${sec.course}|${sec.section}|${sec.timing.label}|${(sec.faculty||'').trim()}`;
-  }
-  function saveAll() {
-    localStorage.setItem(STORAGE_PLANS, JSON.stringify({ plans, activePlanId }));
-  }
+  function keyOf(sec) { return `${sec.course}|${sec.section}|${sec.timing.label}|${(sec.faculty||'').trim()}`; }
+  function saveAll() { localStorage.setItem(STORAGE_PLANS, JSON.stringify({ plans, activePlanId })); }
   function loadAll() {
     try {
       const p = JSON.parse(localStorage.getItem(STORAGE_PLANS) || '{}');
@@ -209,22 +231,33 @@
     } catch {}
     if (!Array.isArray(plans) || plans.length === 0) {
       const id = 'p_' + Math.random().toString(36).slice(2);
-      plans = [{ id, name: 'Plan A', items: [] }];
-      activePlanId = id;
-      saveAll();
+      plans = [{ id, name: 'Plan A', items: [] }]; activePlanId = id; saveAll();
     }
+  }
+  function updateThemeColorMeta(theme) {
+    // Keep the browser UI color in sync with the app theme
+    let meta = document.querySelector('meta[name="theme-color"]:not([media])');
+    const color = theme === 'light' ? '#f3f4f6' : '#0b0f14';
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.setAttribute('name','theme-color');
+      document.head.appendChild(meta);
+    }
+    meta.setAttribute('content', color);
   }
   function applyThemeOnLoad() {
     const saved = localStorage.getItem(STORAGE_THEME);
     const theme = saved === 'light' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', theme);
     syncThemeButton(theme);
+    updateThemeColorMeta(theme);
   }
   function setTheme(isLight) {
     const theme = isLight ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem(STORAGE_THEME, theme);
     syncThemeButton(theme);
+    updateThemeColorMeta(theme);
   }
   function syncThemeButton(theme) {
     const btn = $('#themeToggleBtn');
@@ -232,10 +265,7 @@
     const isLight = theme === 'light';
     btn.setAttribute('aria-label', isLight ? 'Switch to dark theme' : 'Switch to light theme');
   }
-  function reindex() {
-    sectionByKey.clear();
-    for (const sec of sections) sectionByKey.set(keyOf(sec), sec);
-  }
+  function reindex() { sectionByKey.clear(); for (const sec of sections) sectionByKey.set(keyOf(sec), sec); }
   function overlaps(a, b) { return a.start < b.end && b.start < a.end; }
   function findConflictingWith(items, candidate) {
     for (const s of items) {
@@ -245,22 +275,10 @@
     }
     return null;
   }
-  function seatStatus(sec) {
-    const open = Math.max(sec.capacity - sec.enrolled, 0);
-    return { open, full: open === 0 };
-  }
-  function showToast(msg) {
-    const t = $('#toast'); t.textContent = msg; t.classList.add('show');
-    clearTimeout(showToast._timer); showToast._timer = setTimeout(()=>t.classList.remove('show'), 2800);
-  }
-  function slotIndexFor(start, end) {
-    for (let i=0;i<SLOTS.length;i++) if (SLOTS[i].start===start && SLOTS[i].end===end) return i;
-    return -1;
-  }
-  function inDayGroup(sec, groupKey) {
-    const group = DAY_GROUPS[groupKey]; if (!group) return true;
-    return sec.timing.days.some(d => group.includes(d));
-  }
+  function seatStatus(sec) { const open = Math.max(sec.capacity - sec.enrolled, 0); return { open, full: open === 0 }; }
+  function showToast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(showToast._timer); showToast._timer = setTimeout(()=>t.classList.remove('show'), 2800); }
+  function slotIndexFor(start, end) { for (let i=0;i<SLOTS.length;i++) if (SLOTS[i].start===start && SLOTS[i].end===end) return i; return -1; }
+  function inDayGroup(sec, groupKey) { const group = DAY_GROUPS[groupKey]; if (!group) return true; return sec.timing.days.some(d => group.includes(d)); }
 
   // ---------- Backend load ----------
   async function loadSectionsFromBackend() {
@@ -349,7 +367,6 @@
           <td class="right"><span class="avail ${full ? 'full' : 'ok'}">${open}/${sec.capacity}</span></td>
           <td class="actions"></td>
         `;
-        // Faculty text
         tr.children[3].textContent = sec.faculty || '';
 
         const actions = tr.querySelector('.actions');
@@ -396,12 +413,10 @@
   function tryAddToPlan(sec, active) {
     if (!active) return showToast('Create and select a plan first.');
     const existingItems = active.items.map(k => sectionByKey.get(k)).filter(Boolean);
-    // One section per course (explicit message)
     if (existingItems.some(x => x.course === sec.course)) {
       showToast(`You can't choose two sections of the same course (${sec.course}). Remove the other section first.`);
       return;
     }
-    // Prevent conflicts
     const conflict = findConflictingWith(existingItems, sec);
     if (conflict) {
       showToast(`Cannot add: ${sec.course} Sec-${sec.section} (${sec.timing.label}) conflicts with ${conflict.course} Sec-${conflict.section} (${conflict.timing.label}).`);
@@ -419,15 +434,12 @@
     const items = (plan?.items || []).map(k => sectionByKey.get(k)).filter(Boolean);
 
     if (!isMobile) {
-      // Desktop grid
       $('#dayTabs').style.display = 'none';
       mSched.style.display = 'none';
       sched.style.display = 'block';
       sched.innerHTML = '';
-
       sched.style.height = (HEADER_OFFSET + SLOTS.length * SLOT_HEIGHT) + 'px';
 
-      // Left slot rail with header spacer
       const slots = document.createElement('div');
       slots.className = 'slots';
       const slotsHeader = document.createElement('div');
@@ -443,7 +455,6 @@
       }
       sched.appendChild(slots);
 
-      // Day columns (A,S,M,T,W,R)
       const days = document.createElement('div');
       days.className = 'days';
       for (let d = 0; d < DAY_KEYS.length; d++) {
@@ -466,7 +477,6 @@
       }
       sched.appendChild(days);
 
-      // Blocks
       for (const sec of items) {
         const idx = slotIndexFor(sec.timing.start, sec.timing.end);
         const top = (idx >= 0 ? HEADER_OFFSET + idx * SLOT_HEIGHT + 6 : HEADER_OFFSET + 6);
@@ -490,7 +500,6 @@
         }
       }
     } else {
-      // Mobile per-day view
       $('#dayTabs').style.display = 'flex';
       sched.style.display = 'none';
       mSched.style.display = 'block';
@@ -498,7 +507,6 @@
 
       if (!DAY_KEYS.includes(activeMobileDay)) activeMobileDay = DAY_KEYS[0];
 
-      // Day tabs
       const tabs = $('#dayTabs');
       tabs.innerHTML = '';
       for (const dk of DAY_KEYS) {
@@ -509,7 +517,6 @@
         tabs.appendChild(tab);
       }
 
-      // Slot list for selected day
       for (let i=0; i<SLOTS.length; i++) {
         const slot = SLOTS[i];
         const row = document.createElement('div');
@@ -597,65 +604,7 @@
   }
   window.addEventListener('scroll', updateHeaderCompact, { passive: true });
 
-  // ---------- Events ----------
-  $('#btnQuickAddPlan').onclick = () => {
-    const id = 'p_' + Math.random().toString(36).slice(2);
-    plans.push({ id, name: `Plan ${String.fromCharCode(65 + plans.length)}`, items: [] });
-    activePlanId = id;
-    saveAll(); renderAll();
-    showToast('New plan created.');
-  };
-
-  $('#btnAddPlan').onclick = () => {
-    const base = ($('#newPlanName').value || '').trim();
-    const name = base || `Plan ${String.fromCharCode(65 + plans.length)}`;
-    const id = 'p_' + Math.random().toString(36).slice(2);
-    plans.push({ id, name, items: [] });
-    activePlanId = id;
-    $('#newPlanName').value = '';
-    saveAll(); renderAll();
-  };
-
-  $('#btnRenamePlan').onclick = () => {
-    const p = plans.find(x => x.id === activePlanId);
-    if (!p) return showToast('No active plan.');
-    const name = prompt('New name:', p.name);
-    if (!name) return;
-    p.name = name;
-    saveAll(); renderAll();
-  };
-
-  $('#btnDuplicatePlan').onclick = () => {
-    const p = plans.find(x => x.id === activePlanId);
-    if (!p) return showToast('No active plan.');
-    const id = 'p_' + Math.random().toString(36).slice(2);
-    plans.push({ id, name: p.name + ' (copy)', items: [...p.items] });
-    activePlanId = id;
-    saveAll(); renderAll();
-  };
-
-  $('#btnDeletePlan').onclick = () => {
-    const idx = plans.findIndex(x => x.id === activePlanId);
-    if (idx < 0) return showToast('No active plan.');
-    const ok = confirm(`Delete ${plans[idx].name}?`);
-    if (!ok) return;
-    plans.splice(idx, 1);
-    activePlanId = plans[0]?.id || null;
-    saveAll(); renderAll();
-  };
-
-  $('#btnClearActive').onclick = () => {
-    const p = plans.find(x => x.id === activePlanId);
-    if (!p) return;
-    p.items = [];
-    saveAll(); renderAll();
-  };
-
-  $('#search').oninput = () => renderCourseTableOrCards();
-  $('#filterDay').onchange = () => renderCourseTableOrCards();
-  $('#filterAvail').onchange = () => renderCourseTableOrCards();
-
-  // Filters bottom sheet toggles (mobile)
+  // Filters (mobile) bottom sheet toggles
   $('#btnToggleFilters').onclick = () => {
     const wrap = $('#filtersWrap');
     const bd = $('#filtersBackdrop');
@@ -682,11 +631,16 @@
   });
 
   // Mobile breakpoint watcher
-  mql.addEventListener('change', e => {
-    isMobile = e.matches;
-    updateHeaderCompact();
-    renderAll();
-  });
+  const mqlHandler = (e) => { isMobile = e.matches; updateHeaderCompact(); renderAll(); };
+  if (mql.addEventListener) mql.addEventListener('change', mqlHandler); else mql.addListener(mqlHandler);
+
+  // ---------- PWA: Service Worker ----------
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('service-worker.js')
+        .catch(err => console.warn('SW registration failed', err));
+    });
+  }
 
   // ---------- Init ----------
   applyThemeOnLoad();
