@@ -6,22 +6,22 @@
   --panel: #121821;
   --border: #1a2230;
 
-  --muted: #7a8596;        /* dim text */
-  --text: #e7edf5;         /* main text */
+  --muted: #7a8596;
+  --text: #e7edf5;
 
   --accent: #49a6e9;
   --danger: #ef4444;
   --ok: #10b981;
 
-  --grid-line: #1f2937;    /* schedule dashed lines */
-  --chip: #273041;         /* pills/chips bg */
+  --grid-line: #1f2937;
+  --chip: #273041;
   --toast-bg: #1f2937;
   --overlay: rgba(0,0,0,0.45);
 
   --font-base: 15px;
   --font-small: 13px;
-  --font-title: 22px;        /* app title */
-  --font-plan-title: 18px;   /* plan heading */
+  --font-title: 22px;
+  --font-plan-title: 18px;
   --radius: 10px;
 }
 
@@ -59,7 +59,7 @@ header {
   position: sticky; top: 0; z-index: 100;
   display:flex; gap:12px; align-items:center; flex-wrap:wrap;
   padding: 16px 20px;
-  background: var(--panel);            /* opaque */
+  background: var(--panel);
   border-bottom: 1px solid var(--border);
   box-shadow: 0 2px 12px rgba(0,0,0,0.25);
   transition: padding .2s ease, box-shadow .2s ease;
@@ -75,7 +75,7 @@ header {
   display:inline-flex; align-items:center; justify-content:center;
   border-radius: 999px; border: 1px solid var(--border);
   background: transparent; cursor: pointer;
-  color: #cbd5e1; /* icon color in dark */
+  color: #cbd5e1;
   transition: background .2s ease, transform .06s ease;
 }
 .theme-switch:hover { background: rgba(148,163,184,0.12); }
@@ -91,12 +91,12 @@ header {
   background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.35);
   transform: translateX(28px); transition: transform .22s ease;
 }
-/* Light theme: knob left; stronger icon contrast */
+/* Light theme visuals */
 html[data-theme="light"] .theme-switch { color: #1f2937; background: #f8fafc; }
 html[data-theme="light"] .theme-switch .knob { transform: translateX(0); }
 html[data-theme="light"] .theme-switch .icon.sun { opacity: 1; }
 html[data-theme="light"] .theme-switch .icon.moon { opacity: .45; }
-/* Dark theme: knob right; stronger moon icon */
+/* Dark theme icon emphasis */
 html:not([data-theme="light"]) .theme-switch .icon.sun { opacity: .45; }
 html:not([data-theme="light"]) .theme-switch .icon.moon { opacity: 1; }
 
@@ -105,19 +105,10 @@ html:not([data-theme="light"]) .theme-switch .icon.moon { opacity: 1; }
   display: grid; grid-template-columns: 1fr 600px; gap: 16px; padding: 16px;
 }
 .panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }
-.panel h2 { margin: 0 0 8px 0; font-size: 20px; color: #b8c5d6; letter-spacing: 0.2px; } /* increased for Courses/Plans */
+.panel h2 { margin: 0 0 8px 0; font-size: 20px; color: #b8c5d6; letter-spacing: 0.2px; } /* bigger Courses/Plans */
 html[data-theme="light"] .panel h2 { color: #475569; }
 .panel .body { padding: 12px; }
 .row { display:flex; gap: 8px; align-items:center; flex-wrap:wrap; }
-
-input[type="text"], select {
-  width: 100%; padding: 10px 12px; border-radius: var(--radius); border: 1px solid #263044; background: #0f1520; color: var(--text);
-  outline: none; font-size: var(--font-base);
-}
-html[data-theme="light"] input[type="text"], 
-html[data-theme="light"] select {
-  background: #ffffff; border-color: var(--border); color: var(--text);
-}
 
 /* Desktop filters: both selectors on one line */
 .filtersWrap { display:flex; gap:8px; align-items:center; flex-wrap: nowrap; margin-bottom: 8px; }
@@ -128,6 +119,15 @@ html[data-theme="light"] select {
 
 /* Mobile helper text below Courses title */
 .mobile-hint { display:none; margin: 4px 0 6px; color: var(--muted); }
+
+input[type="text"], select {
+  width: 100%; padding: 10px 12px; border-radius: var(--radius); border: 1px solid #263044; background: #0f1520; color: var(--text);
+  outline: none; font-size: var(--font-base);
+}
+html[data-theme="light"] input[type="text"], 
+html[data-theme="light"] select {
+  background: #ffffff; border-color: var(--border); color: var(--text);
+}
 
 .btn {
   appearance: none; border: 1px solid #263044; color: var(--text); background: #122034; padding: 10px 12px; border-radius: var(--radius);
@@ -238,6 +238,7 @@ html[data-theme="light"] .pill { background:#e2e8f0; border-color:#94a3b8; color
 .modal {
   position: fixed; inset: 0; display:flex; align-items:center; justify-content:center; z-index: 1001;
 }
+.modal[hidden], .modal-backdrop[hidden] { display: none !important; } /* ensure hidden truly hides */
 .modal-content {
   width: min(92vw, 440px); background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
   box-shadow: 0 12px 36px rgba(0,0,0,0.45); padding: 16px;
@@ -260,13 +261,6 @@ html[data-theme="light"] .pill { background:#e2e8f0; border-color:#94a3b8; color
   #planPanel { order: 1; }
   #coursesPanel { order: 2; }
 
-  /* Plans: horizontal scroll with snap */
-  .plans {
-    overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px;
-    scroll-snap-type: x mandatory;
-  }
-  .plan { scroll-snap-align: start; }
-
   /* Filters bottom sheet on mobile */
   #btnToggleFilters { display: inline-block; }
   .filtersWrap {
@@ -277,7 +271,7 @@ html[data-theme="light"] .pill { background:#e2e8f0; border-color:#94a3b8; color
   }
   .filtersWrap select { width: 100%; min-width: 0; }
   .filtersWrap.open { display:flex; }
-  #filtersBackdrop.show { display:block; }
+  /* Show backdrop only when open (managed via hidden attribute) */
   .mobile-only { display:inline-flex; }
   .mobile-hint { display:block; }
 
