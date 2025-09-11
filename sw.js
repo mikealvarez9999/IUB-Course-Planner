@@ -1,8 +1,10 @@
-/* IUB Course Planner Service Worker
-   - Static assets: cache-first
-   - Dataset (data/courses.json): network-first (with cache fallback) to keep data fresh
+/* IUB Course Planner Service Worker (v2)
+   - Static assets: cache-first (bump STATIC_CACHE when shipping CSS/JS changes)
+   - HTML navigations: network-first so index.html updates immediately
+   - Dataset (data/courses.json): network-first to keep data fresh
 */
-const STATIC_CACHE = 'iub-static-v1';
+const SW_VERSION = '2025-09-11';
+const STATIC_CACHE = 'iub-static-v2';   // bump this when you deploy new static assets
 const DATA_CACHE = 'iub-data-v1';
 
 const STATIC_ASSETS = [
@@ -12,7 +14,6 @@ const STATIC_ASSETS = [
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png'
-  // Note: data/courses.json is handled via network-first in fetch handler
 ];
 
 self.addEventListener('install', event => {
@@ -34,23 +35,36 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
+// Optional: allow page to trigger immediate activation if needed
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener('fetch', event => {
   const req = event.request;
-  const url = new URL(req.url);
-
-  // Only handle GET
   if (req.method !== 'GET') return;
 
-  // Same-origin requests only
+  const url = new URL(req.url);
   const sameOrigin = url.origin === self.location.origin;
 
-  // Network-first for dataset
-  if (sameOrigin && url.pathname.endsWith('/data/courses.json')) {
-    event.respondWith(networkFirst(req));
+  // 1) HTML navigations: network-first so new index.html propagates quickly
+  const isHTMLNav = req.mode === 'navigate' ||
+                    (req.headers.get('accept') || '').includes('text/html');
+
+  if (sameOrigin && isHTMLNav) {
+    event.respondWith(networkFirstHTML(req));
     return;
   }
 
-  // Cache-first for same-origin static
+  // 2) Dataset: network-first
+  if (sameOrigin && url.pathname.endsWith('/data/courses.json')) {
+    event.respondWith(networkFirstData(req));
+    return;
+  }
+
+  // 3) Same-origin static: cache-first
   if (sameOrigin) {
     event.respondWith(cacheFirst(req));
   }
@@ -69,7 +83,20 @@ async function cacheFirst(req) {
   }
 }
 
-async function networkFirst(req) {
+async function networkFirstHTML(req) {
+  const cache = await caches.open(STATIC_CACHE);
+  try {
+    const fresh = await fetch(req, { cache: 'no-store' });
+    if (fresh && fresh.ok) cache.put(req, fresh.clone());
+    return fresh;
+  } catch (e) {
+    const cached = await cache.match(req, { ignoreSearch: true });
+    // Fallback to cached root if specific HTML not cached
+    return cached || cache.match('./') || new Response('Offline', { status: 503 });
+  }
+}
+
+async function networkFirstData(req) {
   const cache = await caches.open(DATA_CACHE);
   try {
     const fresh = await fetch(req, { cache: 'no-store' });
