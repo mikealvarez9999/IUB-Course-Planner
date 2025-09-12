@@ -196,6 +196,7 @@
         <div style="margin-top:12px;">
           <div class="row" style="justify-content: space-between;">
             <div class="small">Conflicts are prevented on add.</div>
+            <button class="btn" id="btnExportPlan">Export this plan (JPG)</button>
             <button class="btn" id="btnClearActive">Clear active plan</button>
           </div>
           <div class="section-list" id="planList" style="margin-top:8px;"></div>
@@ -1211,7 +1212,148 @@
     updateHeaderCompact();
     renderAll();
   });
-
+  
+  // Helper: show image overlay (iOS PWA fallback)
+  function showImageOverlay(dataUrl) {
+    const ov = document.createElement('div');
+    ov.style.cssText = `
+      position:fixed; inset:0; background:rgba(0,0,0,.8); z-index:99999;
+      display:flex; align-items:center; justify-content:center; padding:16px;
+    `;
+    const inner = document.createElement('div');
+    inner.style.cssText = 'max-width:95vw; max-height:90vh; background:#fff; padding:8px; border-radius:8px; text-align:center;';
+    const p = document.createElement('div');
+    p.textContent = 'Long‑press the image to Save. Tap outside to close.';
+    p.style.cssText = 'font: 14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; margin:0 0 8px;';
+    const img = document.createElement('img');
+    img.src = dataUrl;
+    img.alt = 'Plan export';
+    img.style.cssText = 'max-width:100%; max-height:75vh; display:block; margin:0 auto;';
+    inner.appendChild(p);
+    inner.appendChild(img);
+    ov.appendChild(inner);
+    ov.addEventListener('click', (e) => { if (e.target === ov) document.body.removeChild(ov); });
+    document.body.appendChild(ov);
+  }
+  
+  async function exportCurrentPlanAsImage() {
+    try {
+      const plan = (plans || []).find(p => p.id === activePlanId);
+      if (!plan) { showToast && showToast('No active plan to export.'); return; }
+  
+      // Find whichever schedule is visible right now
+      const deskSched = document.getElementById('schedule');
+      const mobSched = document.getElementById('mSchedule');
+      const planList = document.getElementById('planList');
+  
+      const isVisible = (el) => el && getComputedStyle(el).display !== 'none' && el.offsetParent !== null;
+      const scheduleEl = isVisible(mobSched) ? mobSched : deskSched;
+  
+      if (!scheduleEl || !planList) {
+        showToast && showToast('Nothing to export yet.');
+        return;
+      }
+  
+      // Build an off-screen export container
+      const wrap = document.createElement('div');
+      wrap.style.cssText = `
+        position:fixed; left:-99999px; top:0; width:900px;
+        background:#ffffff; color:#000; padding:16px;
+        font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      `;
+  
+      const title = document.createElement('h2');
+      title.textContent = plan.name || 'Plan';
+      title.style.cssText = 'margin:0 0 8px; font-size:20px;';
+      wrap.appendChild(title);
+  
+      // Clone the schedule (desktop grid or mobile list)
+      const schedClone = scheduleEl.cloneNode(true);
+      schedClone.style.width = '100%';
+      wrap.appendChild(schedClone);
+  
+      // Clone the plan list (selected sections/cards)
+      const listTitle = document.createElement('h3');
+      listTitle.textContent = 'Selected sections';
+      listTitle.style.cssText = 'margin:12px 0 6px; font-size:16px;';
+      wrap.appendChild(listTitle);
+  
+      const listClone = planList.cloneNode(true);
+      wrap.appendChild(listClone);
+  
+      document.body.appendChild(wrap);
+  
+      // Render to canvas
+      const scale = Math.min(2, window.devicePixelRatio || 1); // cap for iOS stability
+      const canvas = await html2canvas(wrap, {
+        backgroundColor: '#ffffff',
+        scale,
+        useCORS: true,
+        logging: false,
+        onclone: (doc) => {
+          // Force light background so JPG isn’t transparent on dark theme
+          doc.documentElement.style.background = '#ffffff';
+          doc.body.style.background = '#ffffff';
+        }
+      });
+  
+      // Clean up the temp node early to keep DOM light
+      document.body.removeChild(wrap);
+  
+      // Make a JPG and download or fallback
+      canvas.toBlob(async (blob) => {
+        if (!blob) {
+          // Last-ditch: try dataURL path
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+          try {
+            const a = document.createElement('a');
+            if ('download' in a) {
+              a.href = dataUrl;
+              a.download = `${(plan.name || 'Plan').replace(/[\\/:*?"<>|]+/g,'_')} - IUB Course Planner.jpg`;
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+            } else {
+              // iOS: open tab; if blocked (PWA), show overlay
+              const w = window.open(dataUrl, '_blank');
+              if (!w || w.closed || typeof w.closed === 'undefined') showImageOverlay(dataUrl);
+            }
+          } catch {
+            showToast && showToast('Export failed.');
+          }
+          return;
+        }
+  
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const fname = `${(plan.name || 'Plan').replace(/[\\/:*?"<>|]+/g,'_')} - IUB Course Planner.jpg`;
+        if ('download' in a) {
+          a.href = url;
+          a.download = fname;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } else {
+          // iOS Safari older / PWA
+          URL.revokeObjectURL(url);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+          const w = window.open(dataUrl, '_blank');
+          if (!w || w.closed || typeof w.closed === 'undefined') showImageOverlay(dataUrl);
+        }
+      }, 'image/jpeg', 0.92);
+    } catch (err) {
+      console.warn('Export failed', err);
+      showToast && showToast('Export failed.');
+    }
+  }
+  
+  // Wire the button once
+  document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('btnExportPlan');
+    if (btn) btn.onclick = exportCurrentPlanAsImage;
+  });
+  
   // ---------- Init ----------
   (function initApp() {
     applyThemeOnLoad();
@@ -1234,5 +1376,6 @@
     updateHeaderCompact();
   })();
 </script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" integrity="sha256-sDS8o6wt8DKQmE0yS1m9lIAScwXH1p5DqvVcKIZe3xc=" crossorigin="anonymous"></script>
 </body>
 </html>
