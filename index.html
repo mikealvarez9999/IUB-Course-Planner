@@ -1213,6 +1213,16 @@
     renderAll();
   });
   
+  // Helper: read the live theme and its real background color
+  function getThemeInfo() {
+    const root = document.documentElement;
+    const theme = root.getAttribute('data-theme') || 'dark';
+    // Try to read the real computed background; fall back to sensible defaults
+    const bodyBg = getComputedStyle(document.body).backgroundColor;
+    const bg = bodyBg && bodyBg !== 'rgba(0, 0, 0, 0)' ? bodyBg : (theme === 'light' ? '#ffffff' : '#121821');
+    return { theme, bg };
+  }
+  
   // Helper: show image overlay (iOS PWA fallback)
   function showImageOverlay(dataUrl) {
     const ov = document.createElement('div');
@@ -1241,24 +1251,21 @@
       const plan = (plans || []).find(p => p.id === activePlanId);
       if (!plan) { showToast && showToast('No active plan to export.'); return; }
   
-      // Find whichever schedule is visible right now
+      // Which schedule is currently visible?
       const deskSched = document.getElementById('schedule');
       const mobSched = document.getElementById('mSchedule');
       const planList = document.getElementById('planList');
-  
       const isVisible = (el) => el && getComputedStyle(el).display !== 'none' && el.offsetParent !== null;
       const scheduleEl = isVisible(mobSched) ? mobSched : deskSched;
+      if (!scheduleEl || !planList) { showToast && showToast('Nothing to export yet.'); return; }
   
-      if (!scheduleEl || !planList) {
-        showToast && showToast('Nothing to export yet.');
-        return;
-      }
+      const { theme, bg } = getThemeInfo();
   
-      // Build an off-screen export container
+      // Off-screen export container (match current theme)
       const wrap = document.createElement('div');
       wrap.style.cssText = `
         position:fixed; left:-99999px; top:0; width:900px;
-        background:#ffffff; color:#000; padding:16px;
+        background:${bg}; color:inherit; padding:16px;
         font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
       `;
   
@@ -1267,12 +1274,10 @@
       title.style.cssText = 'margin:0 0 8px; font-size:20px;';
       wrap.appendChild(title);
   
-      // Clone the schedule (desktop grid or mobile list)
       const schedClone = scheduleEl.cloneNode(true);
       schedClone.style.width = '100%';
       wrap.appendChild(schedClone);
   
-      // Clone the plan list (selected sections/cards)
       const listTitle = document.createElement('h3');
       listTitle.textContent = 'Selected sections';
       listTitle.style.cssText = 'margin:12px 0 6px; font-size:16px;';
@@ -1283,59 +1288,46 @@
   
       document.body.appendChild(wrap);
   
-      // Render to canvas
-      const scale = Math.min(2, window.devicePixelRatio || 1); // cap for iOS stability
+      const scale = Math.min(2, window.devicePixelRatio || 1);
       const canvas = await html2canvas(wrap, {
-        backgroundColor: '#ffffff',
+        backgroundColor: bg,   // use current theme background
         scale,
         useCORS: true,
         logging: false,
         onclone: (doc) => {
-          // Force light background so JPG isn’t transparent on dark theme
-          doc.documentElement.style.background = '#ffffff';
-          doc.body.style.background = '#ffffff';
+          // Ensure cloned DOM keeps the same theme flag; do NOT force white
+          doc.documentElement.setAttribute('data-theme', theme);
+          doc.documentElement.style.background = bg;
+          doc.body.style.background = bg;
         }
       });
   
-      // Clean up the temp node early to keep DOM light
       document.body.removeChild(wrap);
   
-      // Make a JPG and download or fallback
       canvas.toBlob(async (blob) => {
+        const fileName = `${(plan.name || 'Plan').replace(/[\\/:*?"<>|]+/g,'_')} - IUB Course Planner.jpg`;
+  
         if (!blob) {
-          // Last-ditch: try dataURL path
           const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
-          try {
-            const a = document.createElement('a');
-            if ('download' in a) {
-              a.href = dataUrl;
-              a.download = `${(plan.name || 'Plan').replace(/[\\/:*?"<>|]+/g,'_')} - IUB Course Planner.jpg`;
-              document.body.appendChild(a);
-              a.click();
-              a.remove();
-            } else {
-              // iOS: open tab; if blocked (PWA), show overlay
-              const w = window.open(dataUrl, '_blank');
-              if (!w || w.closed || typeof w.closed === 'undefined') showImageOverlay(dataUrl);
-            }
-          } catch {
-            showToast && showToast('Export failed.');
+          const a = document.createElement('a');
+          if ('download' in a) {
+            a.href = dataUrl;
+            a.download = fileName;
+            document.body.appendChild(a); a.click(); a.remove();
+          } else {
+            const w = window.open(dataUrl, '_blank');
+            if (!w || w.closed || typeof w.closed === 'undefined') showImageOverlay(dataUrl);
           }
           return;
         }
   
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        const fname = `${(plan.name || 'Plan').replace(/[\\/:*?"<>|]+/g,'_')} - IUB Course Planner.jpg`;
         if ('download' in a) {
-          a.href = url;
-          a.download = fname;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
+          a.href = url; a.download = fileName;
+          document.body.appendChild(a); a.click(); a.remove();
           setTimeout(() => URL.revokeObjectURL(url), 1000);
         } else {
-          // iOS Safari older / PWA
           URL.revokeObjectURL(url);
           const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
           const w = window.open(dataUrl, '_blank');
@@ -1348,10 +1340,13 @@
     }
   }
   
-  // Wire the button once
+  // Wire the button once (if not already)
   document.addEventListener('DOMContentLoaded', () => {
     const btn = document.getElementById('btnExportPlan');
-    if (btn) btn.onclick = exportCurrentPlanAsImage;
+    if (btn && !btn._wiredExport) {
+      btn._wiredExport = true;
+      btn.onclick = exportCurrentPlanAsImage;
+    }
   });
   
   // ---------- Init ----------
