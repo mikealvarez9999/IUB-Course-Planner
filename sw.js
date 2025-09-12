@@ -4,7 +4,7 @@
    - Dataset (data/courses.json): network-first to keep data fresh
 */
 const SW_VERSION = '2025-09-11';
-const STATIC_CACHE = 'iub-static-v26';   // bump this when you deploy new static assets
+const STATIC_CACHE = 'iub-static-v27';   // bump this when you deploy new static assets
 const DATA_CACHE = 'iub-data-v1';
 
 const STATIC_ASSETS = [
