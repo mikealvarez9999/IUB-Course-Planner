@@ -84,19 +84,6 @@
           <button class="btn" id="btnToggleFilters" aria-expanded="false" aria-controls="filtersWrap">Filters</button>
         </div>
 
-        <!-- Data source toggle -->
-        <div id="sourceToggle" class="source-toggle" style="display:none;">
-          <span class="label">Source:</span>
-          <label class="pill-option">
-            <input type="radio" name="src" value="iras" id="srcIras" />
-            <span>My IRAS offers</span>
-          </label>
-          <label class="pill-option">
-            <input type="radio" name="src" value="static" id="srcStatic" />
-            <span>Static list</span>
-          </label>
-        </div>
-
         <!-- Filters row (desktop inline; mobile bottom sheet) -->
         <div id="filtersBackdrop" aria-hidden="true"></div>
         <div class="filtersWrap" id="filtersWrap">
@@ -112,10 +99,14 @@
             <option value="full">Full</option>
           </select>
 
-          <!-- Desktop placement of IRAS Login (hidden on mobile) -->
+          <!-- Put Done first, IRAS Login second (so IRAS is to the right of Done on desktop) -->
           <button class="btn alt mobile-only" id="btnCloseFilters">Done</button>
+          <!-- Desktop placement of IRAS Login (hidden on mobile) -->
           <button id="btnIRASLoginDesk" class="btn iras" type="button" title="Sign in with IRAS" style="display:none;">IRAS Login</button>
         </div>
+
+        <!-- Last refreshed (always above the table/cards) -->
+        <div id="courseRefreshInfo" class="footnote" style="margin-top: 0;"></div>
 
         <div id="courseError" class="footnote" style="display:none; color:#ff4d4f;"></div>
 
@@ -151,9 +142,6 @@
 
         <!-- Mobile: cards -->
         <div class="cards" id="courseCards" aria-live="polite"></div>
-
-        <!-- Shows last refresh time for IRAS/backup -->
-        <div id="courseRefreshInfo" class="footnote" style="margin-top: 0;"></div>
 
         <div class="footnote">Course list can be shown from IRAS when you’re signed in. Plans you make are saved locally in your browser.</div>
       </div>
@@ -220,7 +208,7 @@
 
   // IRAS auth + source keys
   const IRAS_AUTH_KEY = 'iras-auth-v1';
-  const IRAS_SOURCE_KEY = 'source-mode-v1'; // 'iras' | 'static' | ''
+  const IRAS_SOURCE_KEY = 'source-mode-v1'; // retained but not used for UI toggling anymore
   const IRAS_OFFERS_CACHE_PREFIX = 'iras-offers-';
   const IRAS_API_URL = 'https://iras-bridge.vercel.app/api/iras-offers';
 
@@ -244,7 +232,6 @@
   // ---------- State ----------
   let staticSections = [];  // now user-specific backup, not bundled file
   let irasSections = [];    // from IRAS API
-  let sourceMode = localStorage.getItem(IRAS_SOURCE_KEY) || ''; // start with nothing
   let plans = [];    // [{id,name,items:[sectionKey]}]
   let activePlanId = null;
   const sectionByKey = new Map();
@@ -341,7 +328,6 @@
     clearTimeout(showToast._timer); showToast._timer = setTimeout(()=>t.classList.remove('show'), 2800);
   }
   function slotIndexFor(start, end) {
-    for (let i=0;i*SLOTS.length;i++); // no-op safeguard
     for (let i=0;i<SLOTS.length;i++) if (SLOTS[i].start===start && SLOTS[i].end===end) return i;
     return -1;
   }
@@ -388,8 +374,7 @@
       }
       // Fallback: store locally (full-page redirect case)
       setIRASAuth(auth);
-      localStorage.setItem(IRAS_SOURCE_KEY, 'iras');
-      sourceMode = 'iras';
+      // We no longer rely on a source toggle
       // Clean URL
       ['token','studentId','studentName','departmentName','degreeName','email'].forEach(k => qp.delete(k));
       history.replaceState({}, document.title, url.pathname + (qp.toString() ? '?' + qp.toString() : '') + url.hash);
@@ -411,8 +396,7 @@
   }
   function logoutIRAS() {
     clearIRASAuth();
-    localStorage.setItem(IRAS_SOURCE_KEY, '');
-    sourceMode = '';
+    // Clear selection; app will show nothing or last backup if you still have one and are logged back in
     updateAuthUI();
     renderAll();
   }
@@ -422,28 +406,18 @@
     const deskLogin = $('#btnIRASLoginDesk');
     const info = $('#authInfo');
     const chip = $('#authChip');
-    const src = $('#sourceToggle');
 
     if (auth?.studentId) {
       headLogin.style.display = 'none';
       if (deskLogin) deskLogin.style.display = 'none';
       info.style.display = 'flex';
       chip.textContent = `${auth.studentName || 'Student'} (${auth.studentId})`;
-      src.style.display = 'flex';
-      // Initialize toggle selection
-      const m = localStorage.getItem(IRAS_SOURCE_KEY) || 'iras';
-      sourceMode = m;
-      $('#srcIras').checked = m === 'iras';
-      $('#srcStatic').checked = m === 'static';
-      if (m === 'static') loadBackupForCurrentUser();
+      // When logged in, try to show latest IRAS on demand (handled by render/load)
     } else {
       info.style.display = 'none';
       const isDesk = window.matchMedia('(min-width: 769px)').matches;
       headLogin.style.display = isDesk ? 'none' : '';
       if (deskLogin) deskLogin.style.display = isDesk ? '' : 'none';
-      $('#sourceToggle').style.display = 'none';
-      sourceMode = '';
-      localStorage.setItem(IRAS_SOURCE_KEY, '');
     }
   }
 
@@ -453,8 +427,6 @@
     if (event.data && event.data.type === 'IRAS_AUTH') {
       const auth = event.data.payload;
       setIRASAuth(auth);
-      localStorage.setItem(IRAS_SOURCE_KEY, 'iras');
-      sourceMode = 'iras';
       updateAuthUI();
       loadSectionsFromIRAS().then(() => renderAll());
       try { if (authPopup && !authPopup.closed) authPopup.close(); } catch {}
@@ -500,7 +472,7 @@
       if (!response.ok) throw new Error('HTTP ' + response.status);
       const raw = await response.json();
 
-      // Explicitly follow the actual IRAS shape: data.eligibleOfferCourses (array)
+      // Explicit IRAS shape per your sample: data.eligibleOfferCourses
       const offers = (raw && raw.data && Array.isArray(raw.data.eligibleOfferCourses))
         ? raw.data.eligibleOfferCourses
         : [];
@@ -516,7 +488,7 @@
       // Keep a cached raw set as before (optional)
       localStorage.setItem(IRAS_OFFERS_CACHE_PREFIX + auth.studentId, JSON.stringify(offers));
 
-      // Also reflect in staticSections so user can switch to "Static list" immediately
+      // Also reflect in staticSections so user has fallback immediately
       staticSections = [...irasSections];
 
       reindexAll();
@@ -524,7 +496,8 @@
       console.warn('IRAS offers fetch failed:', e);
 
       // Fallback to per-user backup if available
-      const backup = localStorage.getItem(getIrasBackupKey(getIRASAuth()?.studentId || ''));
+      const studentId = getIRASAuth()?.studentId || '';
+      const backup = studentId && localStorage.getItem(getIrasBackupKey(studentId));
       if (backup) {
         try { irasSections = JSON.parse(backup) || []; } catch { irasSections = []; }
         reindexAll();
@@ -550,9 +523,9 @@
 
   // ---------- Rendering ----------
   function getActiveList() {
-    // Start with nothing unless a source is selected
-    if (sourceMode === 'iras') return irasSections;
-    if (sourceMode === 'static') return staticSections;
+    // Automatic: prefer IRAS if available; otherwise fallback to per-user backup; otherwise empty
+    if (irasSections.length > 0) return irasSections;
+    if (staticSections.length > 0) return staticSections;
     return [];
   }
 
@@ -579,7 +552,8 @@
       if (q && !hay.includes(q)) return false;
       if (groupFilter && !inDayGroup(sec, groupFilter)) return false;
       if (availFilter) {
-        const { full } = seatStatus(sec);
+        const { open } = seatStatus(sec);
+        const full = open === 0;
         if (availFilter === 'open' && full) return false;
         if (availFilter === 'full' && !full) return false;
       }
@@ -593,37 +567,25 @@
     const cards = $('#courseCards');
     const infoBox = $('#courseRefreshInfo');
 
-    // Show "Last refreshed" message when IRAS or backup is in view
+    // Show "Last refreshed" (IRAS or backup)
     infoBox.textContent = '';
     const auth = getIRASAuth();
     if (auth?.studentId) {
       const time = localStorage.getItem(getIrasBackupTimeKey(auth.studentId));
-      if (time && (sourceMode === 'iras' || sourceMode === 'static')) {
+      if (time) {
         const dt = new Date(time);
         infoBox.textContent = 'Last refreshed: ' + dt.toLocaleString();
       }
     }
 
-    // When IRAS selected but no data yet
-    if (sourceMode === 'iras' && irasSections.length === 0) {
+    // If nothing to show yet
+    if (list.length === 0) {
       $('#tableWrap').style.display = isMobile ? 'none' : '';
       cards.style.display = isMobile ? 'grid' : 'none';
       if (!isMobile) {
-        tbody.innerHTML = '<tr><td colspan="7" class="small">No IRAS courses to show yet. Sign in via IRAS or wait for data to load.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="small">No courses to show yet. Sign in via IRAS or wait for data to load.</td></tr>';
       } else {
-        cards.innerHTML = '<div class="small" style="padding:8px;">No IRAS courses to show yet.</div>';
-      }
-      return;
-    }
-
-    // When Static selected but no backup exists
-    if (sourceMode === 'static' && staticSections.length === 0) {
-      $('#tableWrap').style.display = isMobile ? 'none' : '';
-      cards.style.display = isMobile ? 'grid' : 'none';
-      if (!isMobile) {
-        tbody.innerHTML = '<tr><td colspan="7" class="small">No static backup found yet. Load courses from IRAS first.</td></tr>';
-      } else {
-        cards.innerHTML = '<div class="small" style="padding:8px;">No static backup found yet. Load courses from IRAS first.</div>';
+        cards.innerHTML = '<div class="small" style="padding:8px;">No courses to show yet.</div>';
       }
       return;
     }
@@ -637,7 +599,7 @@
 
       for (const sec of list) {
         const tr = document.createElement('tr');
-        const { open, full } = seatStatus(sec);
+        const full = sec.enrolled >= sec.capacity;
 
         tr.innerHTML = `
           <td class="nowrap"><strong>${sec.course}</strong></td>
@@ -645,7 +607,7 @@
           <td><span class="tag">${sec.timing.label}</span></td>
           <td class="wrap"></td>
           <td class="wrap">${sec.title || ''}</td>
-          <td class="right"><span class="avail ${full ? 'full' : 'ok'}">${open}/${sec.capacity}</span></td>
+          <td class="right"><span class="avail ${full ? 'full' : 'ok'}">${sec.enrolled}/${sec.capacity}</span></td>
           <td class="actions"></td>
         `;
         tr.children[3].textContent = sec.faculty || '';
@@ -667,7 +629,7 @@
       const active = plans.find(p => p.id === activePlanId);
 
       for (const sec of list) {
-        const { open, full } = seatStatus(sec);
+        const full = sec.enrolled >= sec.capacity;
         const card = document.createElement('div');
         card.className = 'card';
         card.innerHTML = `
@@ -678,7 +640,7 @@
           <div class="card-sub">${sec.title || ''}</div>
           <div class="card-meta">
             <span class="small"><strong>Faculty:</strong> <span class="fac"></span></span>
-            <span class="small"><strong>Seats:</strong> <span class="${full ? 'avail full' : 'avail ok'}">${open}/${sec.capacity}</span></span>
+            <span class="small"><strong>Seats:</strong> <span class="${full ? 'avail full' : 'avail ok'}">${sec.enrolled}/${sec.capacity}</span></span>
           </div>
           <div class="card-actions">
             <button class="btn">Add To Plan</button>
@@ -871,7 +833,7 @@
   }
 
   function renderAll() {
-    updateAuthUI(); // update source toggle visibility/selection
+    updateAuthUI();
     renderPlans();
     renderCourseTableOrCards();
     renderSchedule();
@@ -993,21 +955,6 @@
   if (deskBtn) deskBtn.addEventListener('click', openIRASPopup);
   $('#btnIRASLogout').addEventListener('click', logoutIRAS);
 
-  // Source toggle
-  $('#sourceToggle').addEventListener('change', (e) => {
-    if (!(e.target instanceof HTMLInputElement)) return;
-    const val = e.target.value === 'iras' ? 'iras' : (e.target.value === 'static' ? 'static' : '');
-    sourceMode = val;
-    localStorage.setItem(IRAS_SOURCE_KEY, val);
-    if (val === 'static') {
-      loadBackupForCurrentUser();
-    } else if (val === 'iras' && irasSections.length === 0) {
-      loadSectionsFromIRAS().finally(renderAll);
-      return;
-    }
-    renderAll();
-  });
-
   // PWA: register service worker (unchanged)
   (function registerSW() {
     if ('serviceWorker' in navigator) {
@@ -1036,7 +983,7 @@
   applyThemeOnLoad();
   loadAll();
   captureIRASAuthFromURL();     // picks up login callback
-  updateAuthUI();               // sets source toggle visibility/selection
+  updateAuthUI();               // sets login UI
   loadSectionsFromBackend();    // per-user backup (if any)
   renderAll();
   updateHeaderCompact();
