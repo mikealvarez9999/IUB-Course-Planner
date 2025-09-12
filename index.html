@@ -535,15 +535,17 @@
   }
 
   // Receive auth from popup
-  window.addEventListener('message', (event) => {
+  window.addEventListener('message', async (event) => {
     if (event.origin !== window.location.origin) return;
     if (event.data && event.data.type === 'IRAS_AUTH') {
       const auth = event.data.payload;
       setIRASAuth(auth);
       updateAuthUI();
-      // Load server plans as soon as we have auth, then IRAS offers
-      loadPlansFromServer().then(() => renderAll());
-      loadSectionsFromIRAS().then(() => renderAll());
+      // IMPORTANT: load saved plans for this account on login
+      await loadPlansFromServer();
+      // Then load courses
+      await loadSectionsFromIRAS();
+      renderAll();
       try { if (authPopup && !authPopup.closed) authPopup.close(); } catch {}
     }
   });
