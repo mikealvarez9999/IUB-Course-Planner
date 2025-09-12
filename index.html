@@ -213,17 +213,18 @@
   <div id="toast" role="status" aria-live="polite"></div>
 
 <style>
-  /* Off-screen container for building the PDF content */
+  /* Off-screen container for building the PDF content (hidden but measurable) */
   #exportContainer {
-    position: fixed;
-    left: -99999px;
+    position: absolute;   /* was: fixed */
+    left: 0;              /* was: -99999px */
     top: 0;
-    width: 794px; /* ~A4 width at 96dpi; html2pdf will scale/paginate */
+    visibility: hidden;   /* hide without removing from layout/paint */
+    width: 794px;         /* ~A4 width at 96dpi; html2pdf will scale/paginate */
     background: #ffffff;
     color: #000;
     padding: 16px;
     box-sizing: border-box;
-    z-index: -1;
+    /* removed z-index:-1 */
   }
   .export-plan {
     break-inside: avoid-page;
@@ -240,7 +241,6 @@
     break-after: page;
     page-break-after: always;
   }
-  /* Make sure schedule backgrounds are visible even if the site is in dark mode */
   @media (prefers-color-scheme: dark) {
     #exportContainer { background: #ffffff; color: #000; }
   }
@@ -1289,7 +1289,7 @@
     if (btn) { btn.disabled = true; btn.textContent = 'Preparing PDF…'; }
     showToast('Preparing PDF…');
 
-    // Create an off-screen container for clean export content
+    // Create a hidden-but-measurable container
     let exportEl = document.getElementById('exportContainer');
     if (!exportEl) {
       exportEl = document.createElement('div');
@@ -1298,31 +1298,30 @@
     }
     exportEl.innerHTML = '';
 
-    // Keep current UI state to restore later
+    // Save current UI state
     const prevActive = activePlanId;
     const prevIsMobile = isMobile;
 
     try {
-      // Force desktop-style schedule rendering for clearer PDF
+      // Force desktop schedule for a consistent "table with pills" look
       isMobile = false;
 
-      // Build a section for each plan
+      // Build a section for each plan using the exact DOM and CSS classes
       for (let i = 0; i < plans.length; i++) {
         const p = plans[i];
         activePlanId = p.id;
 
-        // Re-render schedule and list for this plan in the main DOM so we can clone them
+        // Render in the main DOM (so styles apply), then clone
         if (typeof renderAll === 'function') renderAll();
         else {
           if (typeof renderSchedule === 'function') renderSchedule();
           if (typeof renderPlans === 'function') renderPlans();
         }
 
-        const sched = document.getElementById('schedule');
-        const list = document.getElementById('planList');
+        const sched = document.getElementById('schedule');   // exact schedule grid with pills/blocks
+        const list = document.getElementById('planList');    // exact cards/list below schedule
         const title = document.getElementById('planTitle');
 
-        // Build export section
         const section = document.createElement('section');
         section.className = 'export-plan';
 
@@ -1330,14 +1329,13 @@
         h2.textContent = (p.name || title?.textContent || 'Plan');
         section.appendChild(h2);
 
-        // Clone the desktop schedule (grid)
         if (sched) {
           const schedClone = sched.cloneNode(true);
           schedClone.style.display = 'block';
+          schedClone.style.width = '100%';
           section.appendChild(schedClone);
         }
 
-        // Clone the plan items list (chosen sections)
         if (list) {
           const listWrap = document.createElement('div');
           listWrap.style.marginTop = '8px';
@@ -1347,14 +1345,13 @@
           listTitle.textContent = 'Selected sections';
           listWrap.appendChild(listTitle);
 
-          const listClone = list.cloneNode(true);
+          const listClone = list.cloneNode(true); // preserves rounded cards and exact styles
           listWrap.appendChild(listClone);
           section.appendChild(listWrap);
         }
 
         exportEl.appendChild(section);
 
-        // Page break between plans
         if (i < plans.length - 1) {
           const br = document.createElement('div');
           br.className = 'html2pdf__page-break';
@@ -1362,11 +1359,13 @@
         }
       }
 
-      // Restore active plan in UI to avoid flicker while generating
+      // Restore active plan in the visible UI
       activePlanId = prevActive;
       if (typeof renderAll === 'function') renderAll();
 
-      // Tweak for iOS memory constraints
+      // Allow one frame for layout/paint before capture
+      await new Promise(requestAnimationFrame);
+
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
       const now = new Date();
       const filename = `iub-plans-${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}-${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}.pdf`;
@@ -1376,10 +1375,12 @@
         filename,
         image: { type: 'jpeg', quality: 0.95 },
         html2canvas: {
-          scale: isIOS ? 1.5 : 2,
+          scale: isIOS ? 1.5 : 2,       // iOS memory is tighter
           useCORS: true,
           logging: false,
-          windowWidth: exportEl.scrollWidth
+          backgroundColor: '#ffffff',   // ensure white background
+          windowWidth: exportEl.scrollWidth,
+          windowHeight: exportEl.scrollHeight
         },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
         pagebreak: { mode: ['css', 'legacy'] }
@@ -1395,7 +1396,6 @@
       isMobile = prevIsMobile;
       activePlanId = prevActive;
       if (typeof renderAll === 'function') renderAll();
-      // exportEl.remove(); // optional: remove after export
     }
   }
 
