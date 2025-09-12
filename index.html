@@ -401,10 +401,30 @@
     authPopup = window.open(url, 'iras_login', `width=${w},height=${h},left=${x},top=${y},resizable=yes,scrollbars=yes`);
     if (!authPopup) window.location.href = url;
   }
+
+  // UPDATED: make logout visually clear immediately
   function logoutIRAS() {
     clearIRASAuth();
-    updateAuthUI();
+
+    // Clear IRAS in-memory data and reindex (so the list reflects logged-out state)
+    irasSections = [];
+    reindexAll();
+
+    // Hide the chip right away and clear its text
+    const info = document.getElementById('authInfo');
+    const chip = document.getElementById('authChip');
+    if (chip) chip.textContent = '';
+    if (info) info.style.display = 'none';
+
+    // Reset login buttons to "IRAS Login" immediately
+    wireAuthButtons();
+
+    // Clear the "Last refreshed" text
+    const infoBox = document.getElementById('courseRefreshInfo');
+    if (infoBox) infoBox.textContent = '';
+
     renderAll();
+    showToast('Logged out.');
   }
 
   // Wire login/refresh buttons depending on auth and screen size
@@ -454,6 +474,7 @@
       chip.textContent = `${auth.studentName || 'Student'} (${auth.studentId})`;
     } else {
       info.style.display = 'none';
+      if (chip) chip.textContent = '';
     }
     wireAuthButtons();
   }
@@ -991,6 +1012,9 @@
     const current = document.documentElement.getAttribute('data-theme') || 'dark';
     setTheme(current !== 'light');
   });
+
+  // Wire Logout and (login/refresh handled in wireAuthButtons)
+  document.getElementById('btnIRASLogout').addEventListener('click', logoutIRAS);
 
   // Also re-wire auth buttons on resize breakpoint changes
   mql.addEventListener('change', e => {
