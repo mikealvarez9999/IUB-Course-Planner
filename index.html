@@ -1273,6 +1273,7 @@
     renderAll();
     updateHeaderCompact();
   })();
+  
   // Export all plans to a single PDF (client-side only)
   async function exportAllPlansToPDF() {
     if (!window.html2pdf) {
@@ -1310,13 +1311,11 @@
         const p = plans[i];
         activePlanId = p.id;
 
-        // Re-render schedule and list for this plan in the main DOM
-        // so we can clone the fully-styled result.
+        // Re-render schedule and list for this plan in the main DOM so we can clone them
         if (typeof renderAll === 'function') renderAll();
         else {
           if (typeof renderSchedule === 'function') renderSchedule();
           if (typeof renderPlans === 'function') renderPlans();
-          // If you have a dedicated function to render the right-side list, call it here too.
         }
 
         const sched = document.getElementById('schedule');
@@ -1334,7 +1333,6 @@
         // Clone the desktop schedule (grid)
         if (sched) {
           const schedClone = sched.cloneNode(true);
-          // Ensure the clone is visible in export even if original is hidden by app logic
           schedClone.style.display = 'block';
           section.appendChild(schedClone);
         }
@@ -1356,7 +1354,7 @@
 
         exportEl.appendChild(section);
 
-        // Add a page break between plans (not after the last one)
+        // Page break between plans
         if (i < plans.length - 1) {
           const br = document.createElement('div');
           br.className = 'html2pdf__page-break';
@@ -1364,11 +1362,11 @@
         }
       }
 
-      // Restore the active plan in the main UI before generating PDF to avoid visible flicker
+      // Restore active plan in UI to avoid flicker while generating
       activePlanId = prevActive;
       if (typeof renderAll === 'function') renderAll();
 
-      // Set options (tuned for desktop and Android Chrome; iOS gets a lighter render)
+      // Tweak for iOS memory constraints
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
       const now = new Date();
       const filename = `iub-plans-${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}-${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}.pdf`;
@@ -1378,10 +1376,9 @@
         filename,
         image: { type: 'jpeg', quality: 0.95 },
         html2canvas: {
-          scale: isIOS ? 1.5 : 2,  // iOS memory is tighter
+          scale: isIOS ? 1.5 : 2,
           useCORS: true,
           logging: false,
-          // Helps html2canvas size itself to the content width
           windowWidth: exportEl.scrollWidth
         },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
@@ -1394,21 +1391,19 @@
       console.error('Export failed:', err);
       alert('Could not generate the PDF. If this keeps happening, try on a desktop browser or use the Print route.');
     } finally {
-      // Cleanup and restore UI
       if (btn) { btn.disabled = false; btn.textContent = 'Export all plans (PDF)'; }
       isMobile = prevIsMobile;
       activePlanId = prevActive;
       if (typeof renderAll === 'function') renderAll();
-      // Keep the hidden exportEl for next time; or remove it if you prefer
-      // exportEl.remove();
+      // exportEl.remove(); // optional: remove after export
     }
   }
 
-  // Wire the button (safe to call multiple times)
-  (function wireExportButton() {
+  // Wire the button when DOM is ready (extra-safe)
+  document.addEventListener('DOMContentLoaded', () => {
     const btn = document.getElementById('btnExportPlans');
     if (btn) btn.onclick = exportAllPlansToPDF;
-  })();
+  });
 </script>
 </body>
 </html>
