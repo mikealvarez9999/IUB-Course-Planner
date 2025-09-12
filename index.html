@@ -538,18 +538,19 @@
   window.addEventListener('message', async (event) => {
     if (event.origin !== window.location.origin) return;
     if (event.data && event.data.type === 'IRAS_AUTH') {
-      const auth = event.data.payload;
-      setIRASAuth(auth);
-      updateAuthUI();
-      // IMPORTANT: load saved plans for this account on login
-      await loadPlansFromServer();
-      // Then load courses
-      await loadSectionsFromIRAS();
-      renderAll();
-      try { if (authPopup && !authPopup.closed) authPopup.close(); } catch {}
+      try {
+        const auth = event.data.payload;
+        setIRASAuth(auth);
+        updateAuthUI();         // wires buttons (so IRAS Login becomes Course Refresh)
+        // Load plans first, then courses, then render
+        await loadPlansFromServer().catch(()=>{});
+        await loadSectionsFromIRAS().catch(()=>{});
+        renderAll();
+      } finally {
+        try { if (authPopup && !authPopup.closed) authPopup.close(); } catch {}
+      }
     }
   });
-
   // add once, near other event listeners
   window.addEventListener('beforeunload', () => {
     try { savePlansToServer(); } catch {}
@@ -1141,24 +1142,26 @@
   });
 
   // ---------- Init ----------
-  applyThemeOnLoad();
-
-  // Make sure there's at least an in-memory default before any render
-  ensureDefaultPlans();
+  (function initApp() {
+    applyThemeOnLoad();
   
-  // Capture auth if this is a redirect callback
-  captureIRASAuthFromURL();
-  updateAuthUI();
+    // Always have an in-memory default so UI renders immediately
+    ensureDefaultPlans();
   
-  // IMPORTANT: fetch saved plans tied to the account before first render
-  await loadPlansFromServer().catch(()=>{});
+    // If this page is a redirect callback, capture auth and clean URL
+    captureIRASAuthFromURL();
   
-  // Load any per-user course backup (optional)
-  loadSectionsFromBackend();
+    // Show correct header buttons now
+    updateAuthUI();
   
-  // Initial render; courses will update again when IRAS fetch finishes
-  renderAll();
-  updateHeaderCompact();
+    // Kick off async loads without blocking/wedging the script
+    loadPlansFromServer().then(() => { renderAll(); }).catch(()=>{ /* keep UI */ });
+    loadSectionsFromBackend();   // local backup of courses (non-blocking)
+  
+    // First paint of the UI (empty/default), will update again when loads finish
+    renderAll();
+    updateHeaderCompact();
+  })();
 </script>
 </body>
 </html>
