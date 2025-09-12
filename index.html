@@ -286,7 +286,16 @@
     return { days: dayCodes, start, end, label: `${rawDays}: ${String(m[2]).padStart(4,'0')}-${String(m[3]).padStart(4,'0')}` };
   }
   function keyOf(sec) {
-    return `${sec.course}|${sec.section}|${sec.timing.label}|${(sec.faculty||'').trim()}`;
+    // Stable key: course|section|DAYS:start-end — ignores faculty, uses numeric times
+    // Example: CSE101|1|ST:580-670
+    const days = (sec.timing?.days || []).join('');
+    const start = sec.timing?.start ?? 0;
+    const end = sec.timing?.end ?? 0;
+    return `${sec.course}|${sec.section}|${days}:${start}-${end}`;
+  }
+  function legacyKeyOf(sec) {
+    // Your previous key (kept for compatibility)
+    return `${sec.course}|${sec.section}|${sec.timing?.label || ''}|${(sec.faculty || '').trim()}`;
   }
   function updateThemeMeta(theme) {
     const meta = document.querySelector('meta[name="theme-color"]');
@@ -314,8 +323,13 @@
   }
   function reindexAll() {
     sectionByKey.clear();
-    for (const sec of staticSections) sectionByKey.set(keyOf(sec), sec);
-    for (const sec of irasSections) sectionByKey.set(keyOf(sec), sec);
+    const add = (sec) => {
+      if (!sec) return;
+      sectionByKey.set(keyOf(sec), sec);       // new stable key
+      sectionByKey.set(legacyKeyOf(sec), sec); // legacy key still resolves
+    };
+    for (const sec of staticSections) add(sec);
+    for (const sec of irasSections) add(sec);
   }
   function overlaps(a, b) { return a.start < b.end && b.start < a.end; }
   function findConflictingWith(items, candidate) {
@@ -591,12 +605,19 @@
 
   async function loadSectionsFromIRAS() {
     const auth = getIRASAuth();
-    const errBox = $('#courseError');
+    const errBox = document.getElementById('courseError');
+  
     setBackupBadge(false);
     if (errBox) { errBox.style.display = 'none'; errBox.textContent = ''; }
-
-    if (!auth?.studentId || !auth?.token) { irasSections = []; reindexAll(); return; }
-
+  
+    // Not authenticated → clear in-memory IRAS data and reindex
+    if (!auth?.studentId || !auth?.token) {
+      irasSections = [];
+      reindexAll();
+      if (typeof migratePlanItemsIfPossible === 'function') migratePlanItemsIfPossible();
+      return;
+    }
+  
     setLoading(true);
     try {
       const response = await fetch(IRAS_API_URL, {
@@ -606,30 +627,110 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ studentId: auth.studentId, token: auth.token }),
       });
-
+  
       if (!response.ok) throw new Error('HTTP ' + response.status);
       const raw = await response.json();
-
-      // Back-compat handling:
+  
+      // Back-compat:
+      // - Old bridge: { success:true, data:{ eligibleOfferCourses:[...] } } (no "source")
+      // - New bridge: { ok:true, source:'iras'|'backup'|'none', data:{ eligibleOfferCourses:[...] } }
       const offersRaw = (raw && raw.data && Array.isArray(raw.data.eligibleOfferCourses))
         ? raw.data.eligibleOfferCourses
         : [];
       let source = raw && raw.source ? raw.source : '';
+  
       if (!source) {
         if (offersRaw.length > 0) source = 'iras';
         else if (raw?.success === true || raw?.ok === true) source = 'none';
       }
-
+  
       if (source === 'iras' && offersRaw.length > 0) {
+        // Fresh IRAS: map and persist local backup
         irasSections = offersRaw.map(mapIRASRow).filter(Boolean);
         localStorage.setItem(getIrasBackupKey(auth.studentId), JSON.stringify(irasSections));
         localStorage.setItem(getIrasBackupTimeKey(auth.studentId), new Date().toISOString());
         localStorage.setItem(IRAS_OFFERS_CACHE_PREFIX + auth.studentId, JSON.stringify(offersRaw));
+  
+        // Prefer IRAS list visibly; keep static mirror for unified indexing
         staticSections = [...irasSections];
         reindexAll();
+        if (typeof migratePlanItemsIfPossible === 'function') migratePlanItemsIfPossible();
         setBackupBadge(false);
         return;
       }
+  
+      if (source === 'backup' && offersRaw.length > 0) {
+        // Server backup still gets mapped and mirrored locally for offline
+        irasSections = offersRaw.map(mapIRASRow).filter(Boolean);
+        localStorage.setItem(getIrasBackupKey(auth.studentId), JSON.stringify(irasSections));
+        localStorage.setItem(getIrasBackupTimeKey(auth.studentId), new Date().toISOString());
+        localStorage.setItem(IRAS_OFFERS_CACHE_PREFIX + auth.studentId, JSON.stringify(offersRaw));
+  
+        staticSections = [...irasSections];
+        reindexAll();
+        if (typeof migratePlanItemsIfPossible === 'function') migratePlanItemsIfPossible();
+        setBackupBadge(true, 'Showing last saved backup');
+        return;
+      }
+  
+      // No data from bridge → try per-user local backup
+      const ls = localStorage.getItem(getIrasBackupKey(auth.studentId));
+      if (ls) {
+        try {
+          const parsed = JSON.parse(ls) || [];
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            irasSections = parsed;
+            staticSections = [...irasSections];
+            reindexAll();
+            if (typeof migratePlanItemsIfPossible === 'function') migratePlanItemsIfPossible();
+            setBackupBadge(true, 'Showing last saved backup');
+            return;
+          }
+        } catch {}
+      }
+  
+      // Nothing anywhere — show friendly message
+      irasSections = [];
+      reindexAll();
+      if (typeof migratePlanItemsIfPossible === 'function') migratePlanItemsIfPossible();
+      if (errBox) {
+        errBox.textContent = (raw && raw.message)
+          ? raw.message
+          : 'No IRAS offers available and no backup found yet for this student.';
+        errBox.style.display = 'block';
+      }
+      setBackupBadge(false);
+    } catch (e) {
+      console.warn('IRAS offers fetch failed:', e);
+  
+      // Network/other error → fallback to per-user local backup if available
+      const studentId = getIRASAuth()?.studentId || '';
+      const backup = studentId && localStorage.getItem(getIrasBackupKey(studentId));
+      if (backup) {
+        try {
+          irasSections = JSON.parse(backup) || [];
+          staticSections = [...irasSections];
+          reindexAll();
+          if (typeof migratePlanItemsIfPossible === 'function') migratePlanItemsIfPossible();
+          setBackupBadge(true, 'Showing last saved backup');
+        } catch {
+          irasSections = [];
+          reindexAll();
+          if (typeof migratePlanItemsIfPossible === 'function') migratePlanItemsIfPossible();
+          if (errBox) { errBox.textContent = 'Could not load courses.'; errBox.style.display = 'block'; }
+          setBackupBadge(false);
+        }
+      } else {
+        irasSections = [];
+        reindexAll();
+        if (typeof migratePlanItemsIfPossible === 'function') migratePlanItemsIfPossible();
+        if (errBox) { errBox.textContent = 'Could not load courses.'; errBox.style.display = 'block'; }
+        setBackupBadge(false);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
 
       if (source === 'backup' && offersRaw.length > 0) {
         irasSections = offersRaw.map(mapIRASRow).filter(Boolean);
@@ -833,7 +934,38 @@
       }
     }
   }
-
+  function migratePlanItemsIfPossible() {
+    let changed = false;
+    for (const p of (plans || [])) {
+      if (!Array.isArray(p.items) || p.items.length === 0) continue;
+      const newItems = [];
+      const seen = new Set();
+      for (const k of p.items) {
+        const sec = sectionByKey.get(k);
+        if (sec) {
+          const nk = keyOf(sec);
+          if (!seen.has(nk)) {
+            newItems.push(nk);
+            seen.add(nk);
+          }
+        } else {
+          // keep the original if we can't resolve it yet (maybe offers not loaded)
+          if (!seen.has(k)) {
+            newItems.push(k);
+            seen.add(k);
+          }
+        }
+      }
+      if (newItems.length !== p.items.length || newItems.some((v,i)=>v!==p.items[i])) {
+        p.items = newItems;
+        changed = true;
+      }
+    }
+    if (changed) {
+      // save to server (debounced by saveAll)
+      saveAll();
+    }
+  }
   function tryAddToPlan(sec, active) {
     if (!active) { alert('Create and select a plan first.'); return; }
     const existingItems = active.items.map(k => sectionByKey.get(k)).filter(Boolean);
@@ -846,7 +978,7 @@
       alert(`Cannot add:\n${sec.course} Sec-${sec.section} (${sec.timing.label}) conflicts with\n${conflict.course} Sec-${conflict.section} (${conflict.timing.label}).`);
       return;
     }
-    const k = keyOf(sec);
+    const k = keyOf(sec); // <-- stable key
     if (!active.items.includes(k)) active.items.push(k);
     saveAll(); renderAll();
   }
