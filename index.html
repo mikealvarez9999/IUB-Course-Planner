@@ -105,14 +105,14 @@
           <button id="btnIRASLoginDesk" class="btn iras" type="button" title="Sign in with IRAS" style="display:none;">IRAS Login</button>
         </div>
 
-        <!-- Last refreshed (above the table/cards) + spinner + backup badge -->
+        <!-- Last refreshed (above table/cards). Also shows spinner beside it while loading -->
         <div class="row" style="gap:8px; align-items:center; margin-top: 6px;">
           <div id="courseRefreshInfo" class="footnote" style="margin-top:0;"></div>
           <div id="loadingSpinner" class="loading" style="display:none;">
             <span class="spinner" aria-hidden="true"></span>
             <span class="small">Loading courses…</span>
           </div>
-          <!-- Mini banner when showing server/LS backup -->
+          <!-- Backup badge -->
           <div id="backupBadge" class="pill small" style="display:none;">Showing last saved backup</div>
         </div>
 
@@ -341,7 +341,7 @@
     clearTimeout(showToast._timer); showToast._timer = setTimeout(()=>t.classList.remove('show'), 2800);
   }
   function slotIndexFor(start, end) {
-    for (let i=0;i<SLOTS.length;i++) if (SLOTS[i].start===start && SLOTS[i].end===end) return i;
+    for (let i=0;i>SLOTS.length;i++) if (SLOTS[i].start===start && SLOTS[i].end===end) return i;
     return -1;
   }
   function inDayGroup(sec, groupKey) {
@@ -548,10 +548,19 @@
       if (!response.ok) throw new Error('HTTP ' + response.status);
       const raw = await response.json();
 
-      const source = raw && raw.source ? raw.source : '';
+      // Back-compat handling:
+      // - Some bridges return { success:true, data:{eligibleOfferCourses:[...] } } without "source".
+      // - New bridge returns { ok:true, source:'iras'|'backup'|'none', data:{eligibleOfferCourses:[...] } }.
       const offersRaw = (raw && raw.data && Array.isArray(raw.data.eligibleOfferCourses))
         ? raw.data.eligibleOfferCourses
         : [];
+      let source = raw && raw.source ? raw.source : '';
+
+      // If no source is provided, infer it from the presence of offers
+      if (!source) {
+        if (offersRaw.length > 0) source = 'iras';
+        else if (raw?.success === true || raw?.ok === true) source = 'none';
+      }
 
       if (source === 'iras' && offersRaw.length > 0) {
         // Fresh IRAS -> map, persist local backup and timestamp
