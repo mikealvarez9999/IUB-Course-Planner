@@ -41,9 +41,10 @@
     </div>
     <div class="spacer"></div>
 
-    <!-- IRAS Auth UI (new) -->
+    <!-- IRAS Auth UI -->
     <div id="authBox" class="auth-box">
-      <button id="btnIRASLogin" class="btn small" type="button" title="Sign in with IRAS">IRAS Login</button>
+      <!-- This login button is shown on mobile; hidden on desktop -->
+      <button id="btnIRASLoginHeader" class="btn small iras" type="button" title="Sign in with IRAS">IRAS Login</button>
       <div id="authInfo" class="auth-info" style="display:none;">
         <span id="authChip" class="auth-chip" title="Signed in"></span>
         <button id="btnIRASLogout" class="btn alt small" type="button">Logout</button>
@@ -83,7 +84,7 @@
           <button class="btn" id="btnToggleFilters" aria-expanded="false" aria-controls="filtersWrap">Filters</button>
         </div>
 
-        <!-- Data source toggle (new; shown only when IRAS login available) -->
+        <!-- Data source toggle -->
         <div id="sourceToggle" class="source-toggle" style="display:none;">
           <span class="label">Source:</span>
           <label class="pill-option">
@@ -110,6 +111,10 @@
             <option value="open">Open seats</option>
             <option value="full">Full</option>
           </select>
+
+          <!-- Desktop placement of IRAS Login (hidden on mobile) -->
+          <button id="btnIRASLoginDesk" class="btn iras" type="button" title="Sign in with IRAS" style="display:none;">IRAS Login</button>
+
           <button class="btn alt mobile-only" id="btnCloseFilters">Done</button>
         </div>
 
@@ -214,7 +219,7 @@
   // New: IRAS auth + source keys
   const IRAS_AUTH_KEY = 'iras-auth-v1';
   const IRAS_SOURCE_KEY = 'source-mode-v1'; // 'iras' | 'static'
-  const IRAS_OFFERS_CACHE_PREFIX = 'iras-offers-'; // add studentId
+  const IRAS_OFFERS_CACHE_PREFIX = 'iras-offers-';
 
   // IUB discrete time slots
   const SLOTS = [
@@ -232,29 +237,28 @@
   // ---------- State ----------
   let staticSections = [];  // from data/courses.json
   let irasSections = [];    // from IRAS API
-  let sourceMode = localStorage.getItem(IRAS_SOURCE_KEY) || 'static'; // default static until auth
+  let sourceMode = localStorage.getItem(IRAS_SOURCE_KEY) || 'static';
   let plans = [];    // [{id,name,items:[sectionKey]}]
   let activePlanId = null;
   const sectionByKey = new Map();
   let activeMobileDay = 'S';
   const mql = window.matchMedia('(max-width: 768px)');
   let isMobile = mql.matches;
+  let authPopup = null;
 
   // ---------- Utilities ----------
   const $ = sel => document.querySelector(sel);
   function minutesFromHHMM(s) {
     if (!s) return null;
     let t = String(s).trim();
-    // Accept "11:20" or "1120" or "11.20" and strip am/pm
     t = t.replace(/[^0-9]/g, '');
-    if (t.length === 3) t = '0' + t; // e.g., "900" -> "0900"
+    if (t.length === 3) t = '0' + t; // "900" -> "0900"
     const m = t.match(/^(\d{2})(\d{2})$/);
     if (!m) return null;
     return parseInt(m[1],10)*60 + parseInt(m[2],10);
   }
   function parseDaysTime(str) {
     const src = (str || '').toString().trim();
-    // Accept "MW: 1120-1250" or "MW 1120-1250"
     const m = src.match(/^([A-Z]+)\s*:?\s*(\d{3,4})\s*-\s*(\d{3,4})$/i);
     if (!m) return null;
     const rawDays = (m[1] || '').trim().toUpperCase();
@@ -338,9 +342,9 @@
     return sec.timing.days.some(d => group.includes(d));
   }
 
-  // ---------- IRAS Auth (new) ----------
+  // ---------- IRAS Auth ----------
   function buildRedirectURI() {
-    // Return to the same path (no query) to avoid token leaks
+    // Return to the same path to keep origin consistent for postMessage
     return window.location.origin + window.location.pathname;
   }
   function getIRASAuth() {
@@ -353,6 +357,7 @@
     localStorage.removeItem(IRAS_AUTH_KEY);
   }
   function captureIRASAuthFromURL() {
+    // If this window was opened as a popup and has auth params, send them to opener then close.
     const url = new URL(window.location.href);
     const qp = url.searchParams;
     const token = qp.get('token');
@@ -367,18 +372,34 @@
         email: qp.get('email') || '',
         ts: Date.now()
       };
+      // If popup -> post to opener
+      if (window.opener && typeof window.opener.postMessage === 'function') {
+        window.opener.postMessage({ type: 'IRAS_AUTH', payload: auth }, window.location.origin);
+        window.close();
+        return true;
+      }
+      // Fallback: store locally (full-page redirect case)
       setIRASAuth(auth);
-      // default to IRAS source after first login
       localStorage.setItem(IRAS_SOURCE_KEY, 'iras');
       sourceMode = 'iras';
-      // Clean the URL (preserve any non-auth params)
+      // Clean URL
       ['token','studentId','studentName','departmentName','degreeName','email'].forEach(k => qp.delete(k));
       history.replaceState({}, document.title, url.pathname + (qp.toString() ? '?' + qp.toString() : '') + url.hash);
+      return true;
     }
+    return false;
   }
-  function goToIRASLogin() {
+  function openIRASPopup() {
     const redirect = buildRedirectURI();
-    window.location.href = `https://iras-auth.pages.dev/login?redirect_uri=${encodeURIComponent(redirect)}`;
+    const url = `https://iras-auth.pages.dev/login?redirect_uri=${encodeURIComponent(redirect)}`;
+    const w = 520, h = 640;
+    const y = window.top.outerHeight / 2 + window.top.screenY - (h / 2);
+    const x = window.top.outerWidth / 2 + window.top.screenX - (w / 2);
+    authPopup = window.open(url, 'iras_login', `width=${w},height=${h},left=${x},top=${y},resizable=yes,scrollbars=yes`);
+    if (!authPopup) {
+      // Popup blocked: fallback to full-page
+      window.location.href = url;
+    }
   }
   function logoutIRAS() {
     clearIRASAuth();
@@ -389,13 +410,15 @@
   }
   function updateAuthUI() {
     const auth = getIRASAuth();
-    const loginBtn = $('#btnIRASLogin');
+    const headLogin = $('#btnIRASLoginHeader');
+    const deskLogin = $('#btnIRASLoginDesk');
     const info = $('#authInfo');
     const chip = $('#authChip');
     const src = $('#sourceToggle');
 
     if (auth?.studentId) {
-      loginBtn.style.display = 'none';
+      headLogin.style.display = 'none';
+      if (deskLogin) deskLogin.style.display = 'none';
       info.style.display = 'flex';
       chip.textContent = `${auth.studentName || 'Student'} (${auth.studentId})`;
       src.style.display = 'flex';
@@ -405,13 +428,29 @@
       $('#srcIras').checked = m === 'iras';
       $('#srcStatic').checked = m === 'static';
     } else {
-      loginBtn.style.display = '';
       info.style.display = 'none';
+      const isDesk = window.matchMedia('(min-width: 769px)').matches;
+      headLogin.style.display = isDesk ? 'none' : '';
+      if (deskLogin) deskLogin.style.display = isDesk ? '' : 'none';
       $('#sourceToggle').style.display = 'none';
       sourceMode = 'static';
       localStorage.setItem(IRAS_SOURCE_KEY, 'static');
     }
   }
+
+  // Receive auth from popup
+  window.addEventListener('message', (event) => {
+    if (event.origin !== window.location.origin) return;
+    if (event.data && event.data.type === 'IRAS_AUTH') {
+      const auth = event.data.payload;
+      setIRASAuth(auth);
+      localStorage.setItem(IRAS_SOURCE_KEY, 'iras');
+      sourceMode = 'iras';
+      updateAuthUI();
+      loadSectionsFromIRAS().then(() => renderAll());
+      try { if (authPopup && !authPopup.closed) authPopup.close(); } catch {}
+    }
+  });
 
   // ---------- Backend load ----------
   async function loadSectionsFromBackend() {
@@ -445,12 +484,52 @@
     };
   }
 
-  // ---------- IRAS offers load (new) ----------
+  // ---------- IRAS offers load ----------
+  function isCourseLike(o) {
+    if (!o || typeof o !== 'object') return false;
+    const keys = Object.keys(o);
+    const hints = ['course','courseCode','course_code','code','title','faculty','section','sectionNo','days','days_time','start','end'];
+    return keys.some(k => hints.includes(k));
+  }
+  function firstArrayDeep2(obj) {
+    // Find a first array of objects within the top 2 levels
+    const seen = new Set();
+    function scan(x, depth) {
+      if (!x || typeof x !== 'object' || seen.has(x) || depth > 2) return null;
+      seen.add(x);
+      if (Array.isArray(x) && x.length && typeof x[0] === 'object') return x;
+      for (const k in x) {
+        const v = x[k];
+        if (Array.isArray(v) && v.length && typeof v[0] === 'object') return v;
+      }
+      for (const k in x) {
+        const v = x[k];
+        const found = scan(v, depth + 1);
+        if (found) return found;
+      }
+      return null;
+    }
+    return scan(obj, 0);
+  }
+  function extractOffers(raw) {
+    if (Array.isArray(raw)) return raw;
+    const candidates = [raw?.data, raw?.response, raw?.payload, raw?.result, raw?.results, raw?.courses, raw?.offerCourses, raw?.offer_courses];
+    for (const c of candidates) {
+      if (Array.isArray(c)) return c;
+      if (c && typeof c === 'object') {
+        if (Array.isArray(c.offerCourses)) return c.offerCourses;
+        if (Array.isArray(c.offer_courses)) return c.offer_courses;
+      }
+    }
+    const any = firstArrayDeep2(raw);
+    return Array.isArray(any) ? any : [];
+  }
+
   async function loadSectionsFromIRAS() {
     const auth = getIRASAuth();
     if (!auth?.studentId || !auth?.token) { irasSections = []; reindexAll(); return; }
 
-    // Try cache first for faster paint (optional)
+    // Try cache first for faster paint
     try {
       const cached = JSON.parse(localStorage.getItem(IRAS_OFFERS_CACHE_PREFIX + auth.studentId) || 'null');
       if (Array.isArray(cached) && cached.length) {
@@ -464,35 +543,30 @@
       const response = await fetch('https://irastools.pages.dev/api/student/all-offer-courses', {
         method: 'POST',
         mode: 'cors',
-        cache: 'no-store',           // bypass SW and browser caches
+        cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ studentId: auth.studentId, token: auth.token }),
       });
       if (!response.ok) throw new Error('HTTP ' + response.status);
       const raw = await response.json();
-      // Persist raw for debugging and offline
-      localStorage.setItem(IRAS_OFFERS_CACHE_PREFIX + auth.studentId, JSON.stringify(raw));
-      irasSections = (Array.isArray(raw) ? raw : (raw?.data || raw?.courses || [])).map(mapIRASRow).filter(Boolean);
+      console.log('IRAS offers raw response:', raw);
+      const offers = extractOffers(raw);
+      localStorage.setItem(IRAS_OFFERS_CACHE_PREFIX + auth.studentId, JSON.stringify(offers));
+      irasSections = (offers || []).map(mapIRASRow).filter(Boolean);
       reindexAll();
     } catch (e) {
       console.warn('IRAS offers fetch failed:', e);
-      // Keep any previously cached set; otherwise empty
     }
   }
 
   // Heuristic mapper for IRAS rows -> internal section object
   function mapIRASRow(c) {
     if (!c) return null;
-    // Course code
     const course = c.course || c.courseCode || c.code || c.course_code || c.courseId || 'UNKNOWN';
-    // Section number
     const section = parseInt(c.section ?? c.sec ?? c.sectionNo ?? c.section_number ?? c.section_id ?? '0', 10) || 0;
-    // Title
     const title = (c.title ?? c.courseTitle ?? c.name ?? c.course_name ?? '').toString();
-    // Faculty
     const faculty = (c.faculty ?? c.facultyName ?? c.teacher ?? c.instructor ?? c.teacher_name ?? 'TBA').toString();
 
-    // Build a "DAYS: HHMM-HHMM" string
     let daysTime =
       c.days_time || c.dayTime || c.daysTime ||
       (function buildDT() {
@@ -508,9 +582,7 @@
     const timing = parseDaysTime(daysTime);
     if (!timing) return null;
 
-    // Seats
     const capacity = parseInt(c.capacity ?? c.totalSeats ?? c.seats ?? c.max ?? '0', 10) || 0;
-    // "enrolled" could be registered count; "available" we derive if provided
     let enrolled = parseInt(c.enrolled ?? c.registered ?? c.taken ?? '0', 10);
     const available = parseInt(c.available ?? c.vacant ?? c.open ?? NaN, 10);
     if (Number.isFinite(available) && capacity) {
@@ -529,9 +601,8 @@
 
   // ---------- Rendering ----------
   function getActiveList() {
-    // If IRAS selected but list empty, silently fall back to static
-    const list = (sourceMode === 'iras' && irasSections.length) ? irasSections : staticSections;
-    return list;
+    // Strict: do not fall back. If IRAS is selected and empty, show message.
+    return sourceMode === 'iras' ? irasSections : staticSections;
   }
 
   function renderPlans() {
@@ -570,6 +641,18 @@
     const tbody = $('#courseTbody');
     const cards = $('#courseCards');
 
+    // Show message when IRAS selected but no data yet
+    if (sourceMode === 'iras' && irasSections.length === 0) {
+      $('#tableWrap').style.display = isMobile ? 'none' : '';
+      cards.style.display = isMobile ? 'grid' : 'none';
+      if (!isMobile) {
+        tbody.innerHTML = '<tr><td colspan="7" class="small">No IRAS courses to show yet. Sign in via IRAS or wait for data to load. See Console for “IRAS offers raw response”.</td></tr>';
+      } else {
+        cards.innerHTML = '<div class="small" style="padding:8px;">No IRAS courses to show yet.</div>';
+      }
+      return;
+    }
+
     if (!isMobile) {
       // Desktop: table
       $('#tableWrap').style.display = '';
@@ -590,7 +673,6 @@
           <td class="right"><span class="avail ${full ? 'full' : 'ok'}">${open}/${sec.capacity}</span></td>
           <td class="actions"></td>
         `;
-        // Faculty text
         tr.children[3].textContent = sec.faculty || '';
 
         const actions = tr.querySelector('.actions');
@@ -637,12 +719,10 @@
   function tryAddToPlan(sec, active) {
     if (!active) return showToast('Create and select a plan first.');
     const existingItems = active.items.map(k => sectionByKey.get(k)).filter(Boolean);
-    // One section per course
     if (existingItems.some(x => x.course === sec.course)) {
       showToast(`You can't choose two sections of the same course (${sec.course}). Remove the other section first.`);
       return;
     }
-    // Prevent conflicts
     const conflict = findConflictingWith(existingItems, sec);
     if (conflict) {
       showToast(`Cannot add: ${sec.course} Sec-${sec.section} (${sec.timing.label}) conflicts with ${conflict.course} Sec-${conflict.section} (${conflict.timing.label}).`);
@@ -667,7 +747,6 @@
 
       sched.style.height = (HEADER_OFFSET + SLOTS.length * SLOT_HEIGHT) + 'px';
 
-      // Left slot rail with header spacer
       const slots = document.createElement('div');
       slots.className = 'slots';
       const slotsHeader = document.createElement('div');
@@ -683,7 +762,6 @@
       }
       sched.appendChild(slots);
 
-      // Day columns
       const days = document.createElement('div');
       days.className = 'days';
       for (let d = 0; d < DAY_KEYS.length; d++) {
@@ -706,7 +784,6 @@
       }
       sched.appendChild(days);
 
-      // Blocks
       for (const sec of items) {
         const idx = slotIndexFor(sec.timing.start, sec.timing.end);
         const top = (idx >= 0 ? HEADER_OFFSET + idx * SLOT_HEIGHT + 6 : HEADER_OFFSET + 6);
@@ -730,7 +807,6 @@
         }
       }
     } else {
-      // Mobile per-day view
       $('#dayTabs').style.display = 'flex';
       sched.style.display = 'none';
       mSched.style.display = 'block';
@@ -738,7 +814,6 @@
 
       if (!DAY_KEYS.includes(activeMobileDay)) activeMobileDay = DAY_KEYS[0];
 
-      // Day tabs
       const tabs = $('#dayTabs');
       tabs.innerHTML = '';
       for (const dk of DAY_KEYS) {
@@ -749,7 +824,6 @@
         tabs.appendChild(tab);
       }
 
-      // Slot list for selected day
       for (let i=0; i<SLOTS.length; i++) {
         const slot = SLOTS[i];
         const row = document.createElement('div');
@@ -938,9 +1012,12 @@
     setTheme(current !== 'light');
   });
 
-  // IRAS auth controls (new)
-  $('#btnIRASLogin').addEventListener('click', goToIRASLogin);
+  // IRAS auth controls
+  $('#btnIRASLoginHeader').addEventListener('click', openIRASPopup);
+  const deskBtn = document.getElementById('btnIRASLoginDesk');
+  if (deskBtn) deskBtn.addEventListener('click', openIRASPopup);
   $('#btnIRASLogout').addEventListener('click', logoutIRAS);
+
   // Source toggle
   $('#sourceToggle').addEventListener('change', (e) => {
     if (!(e.target instanceof HTMLInputElement)) return;
@@ -969,6 +1046,7 @@
   // Mobile breakpoint watcher
   mql.addEventListener('change', e => {
     isMobile = e.matches;
+    updateAuthUI();
     updateHeaderCompact();
     renderAll();
   });
@@ -976,14 +1054,12 @@
   // ---------- Init ----------
   applyThemeOnLoad();
   loadAll();
-  captureIRASAuthFromURL();     // picks up login callback
-  updateAuthUI();               // sets source toggle visibility and selection
-  loadSectionsFromBackend();    // load static in parallel
-  loadSectionsFromIRAS();       // if logged in, load IRAS offers
-  Promise.allSettled([          // when either source has data, render
-    (async()=>{ while(staticSections.length===0){ await new Promise(r=>setTimeout(r,50)); break; } })(),
-    (async()=>{ if (getIRASAuth()) { while(irasSections.length===0){ await new Promise(r=>setTimeout(r,50)); break; } } })()
-  ]).finally(() => { renderAll(); updateHeaderCompact(); });
+  const captured = captureIRASAuthFromURL(); // handles popup callback too
+  updateAuthUI();
+  loadSectionsFromBackend();
+  loadSectionsFromIRAS();
+  // Initial render once static is in or after short delay
+  setTimeout(() => { renderAll(); updateHeaderCompact(); }, 150);
 </script>
 </body>
 </html>
