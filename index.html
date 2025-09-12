@@ -732,67 +732,6 @@
     }
   }
 
-      if (source === 'backup' && offersRaw.length > 0) {
-        irasSections = offersRaw.map(mapIRASRow).filter(Boolean);
-        localStorage.setItem(getIrasBackupKey(auth.studentId), JSON.stringify(irasSections));
-        localStorage.setItem(getIrasBackupTimeKey(auth.studentId), new Date().toISOString());
-        localStorage.setItem(IRAS_OFFERS_CACHE_PREFIX + auth.studentId, JSON.stringify(offersRaw));
-        staticSections = [...irasSections];
-        reindexAll();
-        setBackupBadge(true, 'Showing last saved backup');
-        return;
-      }
-
-      const ls = localStorage.getItem(getIrasBackupKey(auth.studentId));
-      if (ls) {
-        try {
-          const parsed = JSON.parse(ls) || [];
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            irasSections = parsed;
-            staticSections = [...irasSections];
-            reindexAll();
-            setBackupBadge(true, 'Showing last saved backup');
-            return;
-          }
-        } catch {}
-      }
-
-      irasSections = [];
-      reindexAll();
-      if (errBox) {
-        errBox.textContent = (raw && raw.message)
-          ? raw.message
-          : 'No IRAS offers available and no backup found yet for this student.';
-        errBox.style.display = 'block';
-      }
-      setBackupBadge(false);
-
-    } catch (e) {
-      console.warn('IRAS offers fetch failed:', e);
-
-      const studentId = getIRASAuth()?.studentId || '';
-      const backup = studentId && localStorage.getItem(getIrasBackupKey(studentId));
-      if (backup) {
-        try {
-          irasSections = JSON.parse(backup) || [];
-          staticSections = [...irasSections];
-          reindexAll();
-          setBackupBadge(true, 'Showing last saved backup');
-        } catch {
-          irasSections = [];
-          reindexAll();
-          if (errBox) { errBox.textContent = 'Could not load courses.'; errBox.style.display = 'block'; }
-        }
-      } else {
-        irasSections = [];
-        reindexAll();
-        if (errBox) { errBox.textContent = 'Could not load courses.'; errBox.style.display = 'block'; }
-      }
-    } finally {
-      setLoading(false);
-    }
-  }
-
   // Map IRAS row -> internal section object
   function mapIRASRow(c) {
     if (!c) return null;
