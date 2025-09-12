@@ -1,10 +1,10 @@
-/* IUB Course Planner Service Worker (v7)
+/* IUB Course Planner Service Worker 
    - Static assets: cache-first (bump STATIC_CACHE when shipping CSS/JS changes)
    - HTML navigations: network-first so index.html updates immediately
    - Dataset (data/courses.json): network-first to keep data fresh
 */
 const SW_VERSION = '2025-09-11';
-const STATIC_CACHE = 'iub-static-v7';   // bump this when you deploy new static assets
+const STATIC_CACHE = 'iub-static-v8';   // bump this when you deploy new static assets
 const DATA_CACHE = 'iub-data-v1';
 
 const STATIC_ASSETS = [
