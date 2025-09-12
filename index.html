@@ -105,13 +105,15 @@
           <button id="btnIRASLoginDesk" class="btn iras" type="button" title="Sign in with IRAS" style="display:none;">IRAS Login</button>
         </div>
 
-        <!-- Last refreshed (above table/cards). Also shows spinner beside it while loading -->
+        <!-- Last refreshed (above the table/cards) + spinner + backup badge -->
         <div class="row" style="gap:8px; align-items:center; margin-top: 6px;">
           <div id="courseRefreshInfo" class="footnote" style="margin-top:0;"></div>
           <div id="loadingSpinner" class="loading" style="display:none;">
             <span class="spinner" aria-hidden="true"></span>
             <span class="small">Loading courses…</span>
           </div>
+          <!-- Mini banner when showing server/LS backup -->
+          <div id="backupBadge" class="pill small" style="display:none;">Showing last saved backup</div>
         </div>
 
         <div id="courseError" class="footnote" style="display:none; color:#ff4d4f;"></div>
@@ -518,8 +520,19 @@
     await loadSectionsFromIRAS().then(() => renderAll());
   }
 
+  function setBackupBadge(show, text) {
+    const badge = $('#backupBadge');
+    if (!badge) return;
+    badge.style.display = show ? 'inline-flex' : 'none';
+    if (text) badge.textContent = text;
+  }
+
   async function loadSectionsFromIRAS() {
     const auth = getIRASAuth();
+    const errBox = $('#courseError');
+    setBackupBadge(false);
+    if (errBox) { errBox.style.display = 'none'; errBox.textContent = ''; }
+
     if (!auth?.studentId || !auth?.token) { irasSections = []; reindexAll(); return; }
 
     setLoading(true);
@@ -535,35 +548,82 @@
       if (!response.ok) throw new Error('HTTP ' + response.status);
       const raw = await response.json();
 
-      // Explicit IRAS shape per your sample: data.eligibleOfferCourses
-      const offers = (raw && raw.data && Array.isArray(raw.data.eligibleOfferCourses))
+      const source = raw && raw.source ? raw.source : '';
+      const offersRaw = (raw && raw.data && Array.isArray(raw.data.eligibleOfferCourses))
         ? raw.data.eligibleOfferCourses
         : [];
 
-      // Map to internal format
-      irasSections = offers.map(mapIRASRow).filter(Boolean);
+      if (source === 'iras' && offersRaw.length > 0) {
+        // Fresh IRAS -> map, persist local backup and timestamp
+        irasSections = offersRaw.map(mapIRASRow).filter(Boolean);
+        localStorage.setItem(getIrasBackupKey(auth.studentId), JSON.stringify(irasSections));
+        localStorage.setItem(getIrasBackupTimeKey(auth.studentId), new Date().toISOString());
+        localStorage.setItem(IRAS_OFFERS_CACHE_PREFIX + auth.studentId, JSON.stringify(offersRaw));
+        staticSections = [...irasSections];
+        reindexAll();
+        setBackupBadge(false);
+        return;
+      }
 
-      // Save backup and timestamp (also update static snapshot for this user)
-      localStorage.setItem(getIrasBackupKey(auth.studentId), JSON.stringify(irasSections));
-      const ts = new Date().toISOString();
-      localStorage.setItem(getIrasBackupTimeKey(auth.studentId), ts);
+      if (source === 'backup' && offersRaw.length > 0) {
+        // Server backup -> map and use; store locally too (so LS stays in sync)
+        irasSections = offersRaw.map(mapIRASRow).filter(Boolean);
+        localStorage.setItem(getIrasBackupKey(auth.studentId), JSON.stringify(irasSections));
+        localStorage.setItem(getIrasBackupTimeKey(auth.studentId), new Date().toISOString());
+        localStorage.setItem(IRAS_OFFERS_CACHE_PREFIX + auth.studentId, JSON.stringify(offersRaw));
+        staticSections = [...irasSections];
+        reindexAll();
+        setBackupBadge(true, 'Showing last saved backup');
+        return;
+      }
 
-      // Keep a cached raw set as before (optional)
-      localStorage.setItem(IRAS_OFFERS_CACHE_PREFIX + auth.studentId, JSON.stringify(offers));
+      // source === 'none' OR empty array -> try localStorage fallback
+      const ls = localStorage.getItem(getIrasBackupKey(auth.studentId));
+      if (ls) {
+        try {
+          const parsed = JSON.parse(ls) || [];
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            irasSections = parsed;
+            staticSections = [...irasSections];
+            reindexAll();
+            setBackupBadge(true, 'Showing last saved backup');
+            return;
+          }
+        } catch {}
+      }
 
-      // Also reflect in staticSections so user has fallback immediately
-      staticSections = [...irasSections];
-
+      // No backup found anywhere — show friendly message
+      irasSections = [];
       reindexAll();
+      if (errBox) {
+        errBox.textContent = (raw && raw.message)
+          ? raw.message
+          : 'No IRAS offers available and no backup found yet for this student.';
+        errBox.style.display = 'block';
+      }
+      setBackupBadge(false);
+
     } catch (e) {
       console.warn('IRAS offers fetch failed:', e);
 
-      // Fallback to per-user backup if available
+      // Network/other error -> fallback to per-user local backup if available
       const studentId = getIRASAuth()?.studentId || '';
       const backup = studentId && localStorage.getItem(getIrasBackupKey(studentId));
       if (backup) {
-        try { irasSections = JSON.parse(backup) || []; } catch { irasSections = []; }
+        try {
+          irasSections = JSON.parse(backup) || [];
+          staticSections = [...irasSections];
+          reindexAll();
+          setBackupBadge(true, 'Showing last saved backup');
+        } catch {
+          irasSections = [];
+          reindexAll();
+          if (errBox) { errBox.textContent = 'Could not load courses.'; errBox.style.display = 'block'; }
+        }
+      } else {
+        irasSections = [];
         reindexAll();
+        if (errBox) { errBox.textContent = 'Could not load courses.'; errBox.style.display = 'block'; }
       }
     } finally {
       setLoading(false);
@@ -1012,9 +1072,6 @@
     const current = document.documentElement.getAttribute('data-theme') || 'dark';
     setTheme(current !== 'light');
   });
-
-  // Wire Logout and (login/refresh handled in wireAuthButtons)
-  document.getElementById('btnIRASLogout').addEventListener('click', logoutIRAS);
 
   // Also re-wire auth buttons on resize breakpoint changes
   mql.addEventListener('change', e => {
