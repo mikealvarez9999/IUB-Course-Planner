@@ -120,7 +120,7 @@ html[data-theme="light"] select {
 .filtersWrap { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 .filtersWrap select { width: auto; min-width: 220px; }
 
-/* Source toggle */
+/* Source toggle (unused now, CSS left as-is) */
 .source-toggle { display:flex; align-items:center; gap:8px; margin: 6px 0 8px; }
 .source-toggle .label { color: var(--muted); font-size: 13px; }
 .source-toggle .pill-option {
@@ -182,7 +182,7 @@ html[data-theme="light"] .tag { color:#0f172a; background:#e8efff; border-color:
 html[data-theme="light"] .table th { color:#334155; background:#f3f4f6; }
 
 /* Desktop: fixed layout that fits within the container.
-   Day/Time >= 170px; Seats/Actions sized to fit; Title narrowed. */
+   Adjusted: Title column expanded a bit by taking from Faculty. */
 @media (min-width: 769px) {
   /* Show desktop IRAS login near Done; hide header login */
   #btnIRASLoginDesk { display:inline-block !important; }
@@ -194,8 +194,8 @@ html[data-theme="light"] .table th { color:#334155; background:#f3f4f6; }
   .table col.col-course  { width: 10%; }
   .table col.col-sec     { width: 6%; }
   .table col.col-time    { width: 16%; }  /* Day/Time; see min-width */
-  .table col.col-faculty { width: 33%; }
-  .table col.col-title   { width: 15%; }
+  .table col.col-faculty { width: 30%; }  /* reduced from 33% */
+  .table col.col-title   { width: 18%; }  /* increased from 15% */
   .table col.col-seats   { width: 8%; }
   .table col.col-actions { width: 12%; }  /* just enough for "Add To Plan" */
 
