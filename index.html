@@ -5,33 +5,13 @@
   <title>IUB Course Planner</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- PWA: theme color (updated dynamically by JS when theme changes) -->
   <meta name="theme-color" content="#121821" />
-  <!-- iOS PWA enhancements -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
   <link rel="manifest" href="manifest.webmanifest" />
 
   <link rel="stylesheet" href="styles.css" />
-
-  <!-- Google Analytics (GA4) — add your ID and it will auto-enable -->
-  <script>
-    (function initGA() {
-      const GA_ID = 'G-XXXXXXXXXX'; // TODO: replace with your GA4 Measurement ID (e.g., G-ABC123XYZ)
-      if (GA_ID && GA_ID.startsWith('G-') && GA_ID !== 'G-XXXXXXXXXX') {
-        const s = document.createElement('script');
-        s.async = true;
-        s.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA_ID;
-        document.head.appendChild(s);
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){ dataLayer.push(arguments); }
-        window.gtag = gtag;
-        gtag('js', new Date());
-        gtag('config', GA_ID, { send_page_view: true });
-      }
-    })();
-  </script>
 </head>
 <body>
   <header id="appHeader">
@@ -41,7 +21,6 @@
     </div>
     <div class="spacer"></div>
 
-    <!-- Theme toggle: sliding switch with sun/moon icons -->
     <button id="themeToggleBtn" class="theme-switch" aria-label="Toggle theme" title="Toggle theme">
       <span class="ts-icon ts-moon" aria-hidden="true">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -63,15 +42,23 @@
       <div class="body">
         <h2>Courses</h2>
 
-        <!-- Mobile-only helper text -->
         <div class="mobile-hint mobile-only small">
           Course list is really long, I'd suggest searching for specific courses instead of scrolling down manually.
         </div>
 
-        <!-- Top row: search + mobile Filters button -->
+        <!-- Top row: search + Filters + Data source + IRAS auth -->
         <div class="toolbar">
           <input type="text" id="search" placeholder="Search course code/title/faculty" />
           <button class="btn" id="btnToggleFilters" aria-expanded="false" aria-controls="filtersWrap">Filters</button>
+
+          <div class="sep"></div>
+
+          <label class="small muted" for="dataSource">Source</label>
+          <select id="dataSource" aria-label="Course source">
+            <option value="static">Static list</option>
+            <option value="iras" disabled>IRAS offers</option>
+          </select>
+          <button class="btn small" id="btnIrasAuth" title="Sign in to IRAS">Sign in with IRAS</button>
         </div>
 
         <!-- Filters row (desktop inline; mobile bottom sheet) -->
@@ -96,7 +83,6 @@
         <!-- Desktop: table -->
         <div class="table-wrap" id="tableWrap">
           <table class="table" id="courseTable" role="table" aria-label="Courses">
-            <!-- Static colgroup to control column widths -->
             <colgroup>
               <col class="col-course" />
               <col class="col-sec" />
@@ -126,7 +112,7 @@
         <!-- Mobile: cards -->
         <div class="cards" id="courseCards" aria-live="polite"></div>
 
-        <div class="footnote">Course list is updated by me. However, the plans you make are saved locally in your browser (do not clear cache).</div>
+        <div class="footnote">Course list can come from IRAS (per-student) or the static list. Plans are saved locally in your browser.</div>
       </div>
     </div>
 
@@ -159,13 +145,9 @@
 
         <div class="plan-title" id="planTitle">Plan A</div>
 
-        <!-- Mobile day tabs -->
         <div class="day-tabs" id="dayTabs" aria-label="Select day"></div>
 
-        <!-- Desktop schedule grid -->
         <div class="schedule desktop" id="schedule"></div>
-
-        <!-- Mobile schedule list -->
         <div class="m-schedule" id="mSchedule" style="display:none;"></div>
 
         <div style="margin-top:12px;">
@@ -189,6 +171,14 @@
   const STORAGE_PLANS = 'iub-plans-v8';
   const STORAGE_THEME = 'iub-theme';
 
+  // Auth + data source
+  const STORAGE_AUTH = 'iub-iras-auth-v1';
+  const AUTH_ORIGIN = 'https://iras-auth.pages.dev';
+  const AUTH_URL = AUTH_ORIGIN + '/';
+  const IRAS_API = 'https://irastools.pages.dev/api/student/all-offer-courses';
+  const DATA_SOURCE_STATIC = 'static';
+  const DATA_SOURCE_IRAS = 'iras';
+
   // IUB discrete time slots
   const SLOTS = [
     { start: 8*60,        end: 9*60+30,  label: '08:00-09:30' },
@@ -204,12 +194,16 @@
 
   // ---------- State ----------
   let sections = [];
-  let plans = [];    // [{id,name,items:[sectionKey]}]
+  let plans = [];
   let activePlanId = null;
   const sectionByKey = new Map();
   let activeMobileDay = 'S';
   const mql = window.matchMedia('(max-width: 768px)');
   let isMobile = mql.matches;
+
+  // Auth + source state
+  let irasAuth = null; // { studentId, token, name?, expiresAt? }
+  let dataSource = DATA_SOURCE_STATIC;
 
   // ---------- Utilities ----------
   const $ = sel => document.querySelector(sel);
@@ -219,7 +213,6 @@
     return parseInt(m[1],10)*60 + parseInt(m[2],10);
   }
   function parseDaysTime(str) {
-    // Trim leading/trailing spaces; accept "XX: 0800-0930" with extra spaces around dash
     const src = (str || '').trim();
     const m = src.match(/^([A-Z]+)\s*:\s*(\d{3,4})\s*-\s*(\d{3,4})$/i);
     if (!m) return null;
@@ -228,15 +221,12 @@
     const start = minutesFromHHMM(m[2]);
     const end = minutesFromHHMM(m[3]);
     if (!dayCodes.length || start == null || end == null) return null;
-    // normalized, no leading spaces
     return { days: dayCodes, start, end, label: `${rawDays}: ${m[2].trim()}-${m[3].trim()}` };
   }
   function keyOf(sec) {
     return `${sec.course}|${sec.section}|${sec.timing.label}|${(sec.faculty||'').trim()}`;
   }
-  function saveAll() {
-    localStorage.setItem(STORAGE_PLANS, JSON.stringify({ plans, activePlanId }));
-  }
+  function saveAll() { localStorage.setItem(STORAGE_PLANS, JSON.stringify({ plans, activePlanId })); }
   function loadAll() {
     try {
       const p = JSON.parse(localStorage.getItem(STORAGE_PLANS) || '{}');
@@ -249,6 +239,10 @@
       activePlanId = id;
       saveAll();
     }
+  }
+  function showToast(msg) {
+    const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(showToast._timer); showToast._timer = setTimeout(()=>t.classList.remove('show'), 2800);
   }
   function updateThemeMeta(theme) {
     const meta = document.querySelector('meta[name="theme-color"]');
@@ -291,10 +285,6 @@
     const open = Math.max(sec.capacity - sec.enrolled, 0);
     return { open, full: open === 0 };
   }
-  function showToast(msg) {
-    const t = $('#toast'); t.textContent = msg; t.classList.add('show');
-    clearTimeout(showToast._timer); showToast._timer = setTimeout(()=>t.classList.remove('show'), 2800);
-  }
   function slotIndexFor(start, end) {
     for (let i=0;i<SLOTS.length;i++) if (SLOTS[i].start===start && SLOTS[i].end===end) return i;
     return -1;
@@ -304,8 +294,8 @@
     return sec.timing.days.some(d => group.includes(d));
   }
 
-  // ---------- Backend load ----------
-  async function loadSectionsFromBackend() {
+  // ---------- Static/Dynamic data loaders ----------
+  async function loadStaticSections() {
     const tbody = $('#courseTbody'); const errorBox = $('#courseError');
     try {
       const resp = await fetch('data/courses.json', { cache: 'no-store' });
@@ -318,7 +308,7 @@
           course: row.course || 'UNKNOWN',
           section: parseInt(row.section || '0', 10) || 0,
           title: row.title || '',
-          faculty: (row.faculty || '').toString(), // supports "00 TBA TBA"
+          faculty: (row.faculty || '').toString(),
           timing: tParsed,
           enrolled: parseInt(row.enrolled || '0', 10) || 0,
           capacity: parseInt(row.capacity || '0', 10) || 0,
@@ -329,13 +319,97 @@
       reindex(); errorBox.style.display = 'none';
     } catch (e) {
       sections = []; reindex();
-      errorBox.textContent = 'Failed to load courses. Please try again later.';
-      errorBox.style.display = 'block';
-      if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="small">No courses available.</td></tr>';
+      $('#courseError').textContent = 'Failed to load static course list.';
+      $('#courseError').style.display = 'block';
     }
   }
 
-  // ---------- Rendering ----------
+  function normalizeHHMMAny(s) {
+    if (!s) return null;
+    const str = String(s).trim();
+    // Accept "1120", "11:20", "11.20"
+    const digits = str.replace(/[^\d]/g,'');
+    if (digits.length === 3) return '0' + digits; // e.g., "920" -> "0920"
+    if (digits.length === 4) return digits;
+    return null;
+  }
+
+  function adaptIrasOfferToSection(o) {
+    const course = o.course || o.course_code || o.courseCode || o.code || '';
+    const section = parseInt(o.section || o.section_no || o.sectionNo || '0', 10) || 0;
+    const title = o.title || o.course_title || o.courseTitle || '';
+    const faculty = o.faculty || o.faculty_name || o.instructor || o.instructorName || o.teacher || '';
+
+    // Build a Days/Time label compatible with parseDaysTime
+    let label = o.days_time || o.daysTime || o.timeLabel || o.schedule || '';
+    if (!label) {
+      const grp = (o.group || o.daysGroup || o.days || '').toString().toUpperCase().replace(/[^A-Z]/g,'');
+      const st = normalizeHHMMAny(o.start || o.startTime || o.timeStart);
+      const en = normalizeHHMMAny(o.end || o.endTime || o.timeEnd);
+      if (grp && st && en) label = `${grp}: ${st}-${en}`;
+    }
+    const tParsed = parseDaysTime(label);
+    if (!tParsed) return null;
+
+    const capacity = parseInt(o.capacity ?? o.cap ?? o.max ?? '0', 10) || 0;
+    const enrolled = parseInt(o.enrolled ?? o.reg ?? o.current ?? '0', 10) || 0;
+    const credits = parseInt(o.credits ?? o.credit ?? '0', 10) || 0;
+
+    return { course, section, title, faculty, timing: tParsed, enrolled, capacity, credits, cat: o.cat || '' };
+  }
+
+  async function loadIrasSections() {
+    const tbody = $('#courseTbody'); const errorBox = $('#courseError');
+    if (!irasAuth?.token || !irasAuth?.studentId) {
+      sections = []; reindex();
+      errorBox.textContent = 'Sign in with IRAS to load your offers.';
+      errorBox.style.display = 'block';
+      return;
+    }
+    try {
+      const resp = await fetch(IRAS_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
+        body: JSON.stringify({ studentId: irasAuth.studentId, token: irasAuth.token }),
+      });
+      if (!resp.ok) {
+        if (resp.status === 401 || resp.status === 403) {
+          // Token invalid; sign out gracefully
+          signOutIras(true);
+          throw new Error('Unauthorized');
+        }
+        throw new Error('HTTP ' + resp.status);
+      }
+      const raw = await resp.json();
+      const arr = Array.isArray(raw?.offers) ? raw.offers
+                : Array.isArray(raw?.data) ? raw.data
+                : Array.isArray(raw) ? raw
+                : [];
+      const mapped = arr.map(adaptIrasOfferToSection).filter(Boolean);
+      sections = mapped;
+      reindex(); errorBox.style.display = 'none';
+      if (!mapped.length) {
+        errorBox.textContent = 'No IRAS offers found for your account.';
+        errorBox.style.display = 'block';
+      }
+    } catch (e) {
+      sections = []; reindex();
+      errorBox.textContent = 'Failed to load IRAS offers. Using Static list may work.';
+      errorBox.style.display = 'block';
+      console.warn('IRAS load failed:', e);
+    }
+  }
+
+  async function refreshSections() {
+    // Show loading
+    const tbody = $('#courseTbody'); if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="small">Loading courses…</td></tr>';
+    if (dataSource === DATA_SOURCE_IRAS) await loadIrasSections();
+    else await loadStaticSections();
+    renderAll();
+  }
+
+  // ---------- Rendering (unchanged except they read from "sections") ----------
   function renderPlans() {
     const cont = $('#plans'); cont.innerHTML = '';
     for (const p of plans) {
@@ -372,7 +446,6 @@
     const cards = $('#courseCards');
 
     if (!isMobile) {
-      // Desktop: table
       $('#tableWrap').style.display = '';
       cards.style.display = 'none';
       tbody.innerHTML = '';
@@ -391,7 +464,6 @@
           <td class="right"><span class="avail ${full ? 'full' : 'ok'}">${open}/${sec.capacity}</span></td>
           <td class="actions"></td>
         `;
-        // Faculty text
         tr.children[3].textContent = sec.faculty || '';
 
         const actions = tr.querySelector('.actions');
@@ -404,7 +476,6 @@
         tbody.appendChild(tr);
       }
     } else {
-      // Mobile: cards
       $('#tableWrap').style.display = 'none';
       cards.style.display = 'grid';
       cards.innerHTML = '';
@@ -438,12 +509,10 @@
   function tryAddToPlan(sec, active) {
     if (!active) return showToast('Create and select a plan first.');
     const existingItems = active.items.map(k => sectionByKey.get(k)).filter(Boolean);
-    // One section per course
     if (existingItems.some(x => x.course === sec.course)) {
       showToast(`You can't choose two sections of the same course (${sec.course}). Remove the other section first.`);
       return;
     }
-    // Prevent conflicts
     const conflict = findConflictingWith(existingItems, sec);
     if (conflict) {
       showToast(`Cannot add: ${sec.course} Sec-${sec.section} (${sec.timing.label}) conflicts with ${conflict.course} Sec-${conflict.section} (${conflict.timing.label}).`);
@@ -461,7 +530,6 @@
     const items = (plan?.items || []).map(k => sectionByKey.get(k)).filter(Boolean);
 
     if (!isMobile) {
-      // Desktop grid
       $('#dayTabs').style.display = 'none';
       mSched.style.display = 'none';
       sched.style.display = 'block';
@@ -469,13 +537,11 @@
 
       sched.style.height = (HEADER_OFFSET + SLOTS.length * SLOT_HEIGHT) + 'px';
 
-      // Left slot rail with header spacer
       const slots = document.createElement('div');
       slots.className = 'slots';
       const slotsHeader = document.createElement('div');
       slotsHeader.className = 'slots-header';
       slots.appendChild(slotsHeader);
-      for (let i=0;i*SLOTS.length;i++) {} // no-op to avoid accidental code removal
       for (let i=0;i<SLOTS.length;i++) {
         const row = document.createElement('div');
         row.className = 'slot';
@@ -486,7 +552,6 @@
       }
       sched.appendChild(slots);
 
-      // Day columns (A,S,M,T,W,R)
       const days = document.createElement('div');
       days.className = 'days';
       for (let d = 0; d < DAY_KEYS.length; d++) {
@@ -509,7 +574,6 @@
       }
       sched.appendChild(days);
 
-      // Blocks
       for (const sec of items) {
         const idx = slotIndexFor(sec.timing.start, sec.timing.end);
         const top = (idx >= 0 ? HEADER_OFFSET + idx * SLOT_HEIGHT + 6 : HEADER_OFFSET + 6);
@@ -533,7 +597,6 @@
         }
       }
     } else {
-      // Mobile per-day view
       $('#dayTabs').style.display = 'flex';
       sched.style.display = 'none';
       mSched.style.display = 'block';
@@ -541,7 +604,6 @@
 
       if (!DAY_KEYS.includes(activeMobileDay)) activeMobileDay = DAY_KEYS[0];
 
-      // Day tabs
       const tabs = $('#dayTabs');
       tabs.innerHTML = '';
       for (const dk of DAY_KEYS) {
@@ -552,7 +614,6 @@
         tabs.appendChild(tab);
       }
 
-      // Slot list for selected day
       for (let i=0; i<SLOTS.length; i++) {
         const slot = SLOTS[i];
         const row = document.createElement('div');
@@ -661,7 +722,6 @@
       .setAttribute('aria-expanded', open ? 'true' : 'false');
   };
 
-  // When backdrop is tapped: close, then re-dispatch the tap to what's underneath
   document.getElementById('filtersBackdrop').addEventListener('click', (e) => {
     const { clientX, clientY } = e;
     closeFiltersSheet();
@@ -672,11 +732,9 @@
   });
 
   document.getElementById('btnCloseFilters').onclick = () => closeFiltersSheet();
-
-  // Safety: any interaction with the Plans panel closes the sheet first
   document.getElementById('planPanel').addEventListener('pointerdown', () => closeFiltersSheet());
 
-  // ---------- Events ----------
+  // ---------- Plans actions ----------
   $('#btnQuickAddPlan').onclick = () => {
     const id = 'p_' + Math.random().toString(36).slice(2);
     plans.push({ id, name: `Plan ${String.fromCharCode(65 + plans.length)}`, items: [] });
@@ -730,28 +788,98 @@
     saveAll(); renderAll();
   };
 
+  // ---------- Search/filters ----------
   $('#search').oninput = () => renderCourseTableOrCards();
   $('#filterDay').onchange = () => renderCourseTableOrCards();
   $('#filterAvail').onchange = () => renderCourseTableOrCards();
 
-  // Theme toggle (switch)
+  // ---------- Theme ----------
   $('#themeToggleBtn').addEventListener('click', () => {
     const current = document.documentElement.getAttribute('data-theme') || 'dark';
     setTheme(current !== 'light');
   });
 
-  // PWA: register service worker
+  // ---------- IRAS Auth + Source ----------
+  function saveAuth() {
+    if (irasAuth) localStorage.setItem(STORAGE_AUTH, JSON.stringify(irasAuth));
+    else localStorage.removeItem(STORAGE_AUTH);
+  }
+  function loadAuth() {
+    try { irasAuth = JSON.parse(localStorage.getItem(STORAGE_AUTH) || 'null'); } catch { irasAuth = null; }
+  }
+  function updateAuthUI() {
+    const srcSel = $('#dataSource');
+    const btn = $('#btnIrasAuth');
+    const hasAuth = !!(irasAuth && irasAuth.token && irasAuth.studentId);
+    // Enable/disable IRAS option
+    const irasOpt = Array.from(srcSel.options).find(o => o.value === 'iras');
+    if (irasOpt) irasOpt.disabled = !hasAuth;
+    // If currently on IRAS but lost auth, switch to static
+    if (!hasAuth && dataSource === DATA_SOURCE_IRAS) {
+      dataSource = DATA_SOURCE_STATIC;
+      srcSel.value = 'static';
+    }
+    // Button text
+    btn.textContent = hasAuth ? `Sign out (${irasAuth.name || irasAuth.studentId})` : 'Sign in with IRAS';
+    btn.title = hasAuth ? 'Sign out of IRAS' : 'Sign in to IRAS';
+  }
+
+  function signOutIras(silent=false) {
+    irasAuth = null;
+    saveAuth();
+    updateAuthUI();
+    if (dataSource === DATA_SOURCE_IRAS) {
+      dataSource = DATA_SOURCE_STATIC;
+      $('#dataSource').value = 'static';
+      refreshSections();
+    }
+    if (!silent) showToast('Signed out of IRAS.');
+  }
+
+  function signInIras() {
+    // Popup-based auth; provider should postMessage back { type:'IRAS_AUTH_SUCCESS', token, studentId, name? }
+    const w = window.open(AUTH_URL + '?origin=' + encodeURIComponent(location.origin), 'irasAuth', 'width=460,height=640');
+    if (!w) { showToast('Please allow popups to sign in.'); return; }
+
+    function onMsg(event) {
+      if (event.origin !== AUTH_ORIGIN) return;
+      const d = event.data || {};
+      if (d.type === 'IRAS_AUTH_SUCCESS' || d.type === 'IRAS_AUTH') {
+        irasAuth = { token: d.token, studentId: d.studentId, name: d.name || d.displayName || '', expiresAt: d.expiresAt || null };
+        saveAuth();
+        updateAuthUI();
+        dataSource = DATA_SOURCE_IRAS;
+        $('#dataSource').value = 'iras';
+        showToast('Signed in with IRAS.');
+        refreshSections();
+        window.removeEventListener('message', onMsg);
+        try { w.close(); } catch {}
+      } else if (d.type === 'IRAS_AUTH_FAILURE') {
+        showToast('IRAS sign-in failed.');
+        window.removeEventListener('message', onMsg);
+        try { w.close(); } catch {}
+      }
+    }
+    window.addEventListener('message', onMsg);
+  }
+
+  $('#btnIrasAuth').onclick = () => {
+    if (irasAuth?.token) signOutIras();
+    else signInIras();
+  };
+
+  $('#dataSource').onchange = () => {
+    dataSource = ($('#dataSource').value === 'iras' ? DATA_SOURCE_IRAS : DATA_SOURCE_STATIC);
+    refreshSections();
+  };
+
+  // ---------- PWA SW registration ----------
   (function registerSW() {
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', async () => {
         try {
-          const reg = await navigator.serviceWorker.register('./sw.js');
-          // Reload when a new SW takes control
-          navigator.serviceWorker.addEventListener('controllerchange', () => {
-            // Optional: show a toast before reload
-            // showToast('App updated. Reloading…');
-            window.location.reload();
-          });
+          await navigator.serviceWorker.register('./sw.js');
+          navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload());
         } catch (e) {
           console.warn('SW registration failed:', e);
         }
@@ -769,7 +897,11 @@
   // ---------- Init ----------
   applyThemeOnLoad();
   loadAll();
-  loadSectionsFromBackend().then(() => { renderAll(); updateHeaderCompact(); });
+  loadAuth();
+  updateAuthUI();
+  // Default to static; if already signed in, you can auto-switch to IRAS by uncommenting:
+  if (irasAuth?.token) { dataSource = DATA_SOURCE_IRAS; $('#dataSource').value = 'iras'; }
+  refreshSections();
 </script>
 </body>
 </html>
