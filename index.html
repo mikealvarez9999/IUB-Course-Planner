@@ -1213,16 +1213,6 @@
     renderAll();
   });
   
-  // Helper: read the live theme and its real background color
-  function getThemeInfo() {
-    const root = document.documentElement;
-    const theme = root.getAttribute('data-theme') || 'dark';
-    // Try to read the real computed background; fall back to sensible defaults
-    const bodyBg = getComputedStyle(document.body).backgroundColor;
-    const bg = bodyBg && bodyBg !== 'rgba(0, 0, 0, 0)' ? bodyBg : (theme === 'light' ? '#ffffff' : '#121821');
-    return { theme, bg };
-  }
-  
   // Helper: show image overlay (iOS PWA fallback)
   function showImageOverlay(dataUrl) {
     const ov = document.createElement('div');
@@ -1251,17 +1241,18 @@
       const plan = (plans || []).find(p => p.id === activePlanId);
       if (!plan) { showToast && showToast('No active plan to export.'); return; }
   
-      // Which schedule is currently visible?
-      const deskSched = document.getElementById('schedule');
-      const mobSched = document.getElementById('mSchedule');
-      const planList = document.getElementById('planList');
-      const isVisible = (el) => el && getComputedStyle(el).display !== 'none' && el.offsetParent !== null;
-      const scheduleEl = isVisible(mobSched) ? mobSched : deskSched;
-      if (!scheduleEl || !planList) { showToast && showToast('Nothing to export yet.'); return; }
+      // Elements we’ll need
+      const schedEl = document.getElementById('schedule');     // desktop grid
+      const planList = document.getElementById('planList');    // selected sections list
+      if (!schedEl || !planList) { showToast && showToast('Nothing to export yet.'); return; }
   
-      const { theme, bg } = getThemeInfo();
+      // Read current theme and background so the export matches the app
+      const root = document.documentElement;
+      const theme = root.getAttribute('data-theme') || 'dark';
+      const bodyBg = getComputedStyle(document.body).backgroundColor;
+      const bg = bodyBg && bodyBg !== 'rgba(0, 0, 0, 0)' ? bodyBg : (theme === 'light' ? '#ffffff' : '#121821');
   
-      // Off-screen export container (match current theme)
+      // Build an off-screen export container
       const wrap = document.createElement('div');
       wrap.style.cssText = `
         position:fixed; left:-99999px; top:0; width:900px;
@@ -1274,7 +1265,23 @@
       title.style.cssText = 'margin:0 0 8px; font-size:20px;';
       wrap.appendChild(title);
   
-      const schedClone = scheduleEl.cloneNode(true);
+      // Force-render the DESKTOP schedule even on phones, without flashing the UI
+      const planPanel = document.getElementById('planPanel');
+      const prevVisibility = planPanel ? planPanel.style.visibility : '';
+      const wasMobile = isMobile;
+      let schedClone;
+      try {
+        if (planPanel) planPanel.style.visibility = 'hidden'; // avoid visible flicker
+        isMobile = false;
+        renderSchedule(); // renders desktop grid into #schedule
+        schedClone = schedEl.cloneNode(true);
+      } finally {
+        // Restore the UI to whatever the user had
+        isMobile = wasMobile;
+        renderSchedule();
+        if (planPanel) planPanel.style.visibility = prevVisibility;
+      }
+  
       schedClone.style.width = '100%';
       wrap.appendChild(schedClone);
   
@@ -1286,33 +1293,40 @@
       const listClone = planList.cloneNode(true);
       wrap.appendChild(listClone);
   
+      // Footer
+      const footer = document.createElement('div');
+      footer.textContent = 'created using IUB Course Planner, developed by Raiyan Bin Rais';
+      footer.style.cssText = 'margin-top:12px; font-size:12px; opacity:.7; text-align:right;';
+      wrap.appendChild(footer);
+  
       document.body.appendChild(wrap);
   
-      const scale = Math.min(2, window.devicePixelRatio || 1);
+      // Render to canvas with current theme background
+      const scale = Math.min(2, window.devicePixelRatio || 1); // keep stable on iOS
       const canvas = await html2canvas(wrap, {
-        backgroundColor: bg,   // use current theme background
+        backgroundColor: bg,
         scale,
         useCORS: true,
         logging: false,
         onclone: (doc) => {
-          // Ensure cloned DOM keeps the same theme flag; do NOT force white
+          // Ensure the cloned DOM keeps the same theme
           doc.documentElement.setAttribute('data-theme', theme);
           doc.documentElement.style.background = bg;
           doc.body.style.background = bg;
         }
       });
   
+      // Clean up temp node
       document.body.removeChild(wrap);
   
+      // Download (with iOS fallbacks)
+      const fileName = `${(plan.name || 'Plan').replace(/[\\/:*?"<>|]+/g,'_')} - IUB Course Planner.jpg`;
       canvas.toBlob(async (blob) => {
-        const fileName = `${(plan.name || 'Plan').replace(/[\\/:*?"<>|]+/g,'_')} - IUB Course Planner.jpg`;
-  
         if (!blob) {
           const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
           const a = document.createElement('a');
           if ('download' in a) {
-            a.href = dataUrl;
-            a.download = fileName;
+            a.href = dataUrl; a.download = fileName;
             document.body.appendChild(a); a.click(); a.remove();
           } else {
             const w = window.open(dataUrl, '_blank');
@@ -1320,7 +1334,6 @@
           }
           return;
         }
-  
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         if ('download' in a) {
@@ -1339,6 +1352,7 @@
       showToast && showToast('Export failed.');
     }
   }
+
   
   // Wire the button once (if not already)
   document.addEventListener('DOMContentLoaded', () => {
