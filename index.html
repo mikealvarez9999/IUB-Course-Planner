@@ -43,7 +43,7 @@
 
     <!-- IRAS Auth UI -->
     <div id="authBox" class="auth-box">
-      <!-- This login button is shown on mobile; hidden on desktop -->
+      <!-- This button becomes "Course Refresh" after login -->
       <button id="btnIRASLoginHeader" class="btn small iras" type="button" title="Sign in with IRAS">IRAS Login</button>
       <div id="authInfo" class="auth-info" style="display:none;">
         <span id="authChip" class="auth-chip" title="Signed in"></span>
@@ -99,14 +99,20 @@
             <option value="full">Full</option>
           </select>
 
-          <!-- Put Done first, IRAS Login second (so IRAS is to the right of Done on desktop) -->
+          <!-- Put Done first, IRAS/Refresh second (so button is right of Done on desktop) -->
           <button class="btn alt mobile-only" id="btnCloseFilters">Done</button>
-          <!-- Desktop placement of IRAS Login (hidden on mobile) -->
+          <!-- This button becomes "Course Refresh" after login on desktop -->
           <button id="btnIRASLoginDesk" class="btn iras" type="button" title="Sign in with IRAS" style="display:none;">IRAS Login</button>
         </div>
 
-        <!-- Last refreshed (always above the table/cards) -->
-        <div id="courseRefreshInfo" class="footnote" style="margin-top: 0;"></div>
+        <!-- Last refreshed (above table/cards). Also shows spinner beside it while loading -->
+        <div class="row" style="gap:8px; align-items:center; margin-top: 6px;">
+          <div id="courseRefreshInfo" class="footnote" style="margin-top:0;"></div>
+          <div id="loadingSpinner" class="loading" style="display:none;">
+            <span class="spinner" aria-hidden="true"></span>
+            <span class="small">Loading courses…</span>
+          </div>
+        </div>
 
         <div id="courseError" class="footnote" style="display:none; color:#ff4d4f;"></div>
 
@@ -130,7 +136,7 @@
                 <th>Days/Time</th>
                 <th>Faculty</th>
                 <th>Title</th>
-                <th class="right">Seats</th>
+                <th class="right">Enrolled</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -208,7 +214,6 @@
 
   // IRAS auth + source keys
   const IRAS_AUTH_KEY = 'iras-auth-v1';
-  const IRAS_SOURCE_KEY = 'source-mode-v1'; // retained but not used for UI toggling anymore
   const IRAS_OFFERS_CACHE_PREFIX = 'iras-offers-';
   const IRAS_API_URL = 'https://iras-bridge.vercel.app/api/iras-offers';
 
@@ -230,7 +235,7 @@
   const DAY_GROUPS = { ST: ['S','T'], MW: ['M','W'], AR: ['A','R'] };
 
   // ---------- State ----------
-  let staticSections = [];  // now user-specific backup, not bundled file
+  let staticSections = [];  // per-user backup
   let irasSections = [];    // from IRAS API
   let plans = [];    // [{id,name,items:[sectionKey]}]
   let activePlanId = null;
@@ -239,9 +244,19 @@
   const mql = window.matchMedia('(max-width: 768px)');
   let isMobile = mql.matches;
   let authPopup = null;
+  let isLoadingCourses = false;
 
   // ---------- Utilities ----------
   const $ = sel => document.querySelector(sel);
+  function setLoading(loading) {
+    isLoadingCourses = !!loading;
+    const sp = $('#loadingSpinner');
+    const headerBtn = $('#btnIRASLoginHeader');
+    const deskBtn = $('#btnIRASLoginDesk');
+    if (sp) sp.style.display = loading ? 'inline-flex' : 'none';
+    if (headerBtn) headerBtn.disabled = loading;
+    if (deskBtn) deskBtn.disabled = loading;
+  }
   function minutesFromHHMM(s) {
     if (!s) return null;
     let t = String(s).trim();
@@ -319,10 +334,6 @@
     }
     return null;
   }
-  function seatStatus(sec) {
-    const open = Math.max(sec.capacity - sec.enrolled, 0);
-    return { open, full: open === 0 };
-  }
   function showToast(msg) {
     const t = $('#toast'); t.textContent = msg; t.classList.add('show');
     clearTimeout(showToast._timer); showToast._timer = setTimeout(()=>t.classList.remove('show'), 2800);
@@ -374,7 +385,6 @@
       }
       // Fallback: store locally (full-page redirect case)
       setIRASAuth(auth);
-      // We no longer rely on a source toggle
       // Clean URL
       ['token','studentId','studentName','departmentName','degreeName','email'].forEach(k => qp.delete(k));
       history.replaceState({}, document.title, url.pathname + (qp.toString() ? '?' + qp.toString() : '') + url.hash);
@@ -389,17 +399,49 @@
     const y = window.top.outerHeight / 2 + window.top.screenY - (h / 2);
     const x = window.top.outerWidth / 2 + window.top.screenX - (w / 2);
     authPopup = window.open(url, 'iras_login', `width=${w},height=${h},left=${x},top=${y},resizable=yes,scrollbars=yes`);
-    if (!authPopup) {
-      // Popup blocked: fallback to full-page
-      window.location.href = url;
-    }
+    if (!authPopup) window.location.href = url;
   }
   function logoutIRAS() {
     clearIRASAuth();
-    // Clear selection; app will show nothing or last backup if you still have one and are logged back in
     updateAuthUI();
     renderAll();
   }
+
+  // Wire login/refresh buttons depending on auth and screen size
+  function wireAuthButtons() {
+    const auth = getIRASAuth();
+    const headLogin = $('#btnIRASLoginHeader');
+    const deskLogin = $('#btnIRASLoginDesk');
+
+    if (!headLogin || !deskLogin) return;
+
+    const isDesk = window.matchMedia('(min-width: 769px)').matches;
+
+    if (auth?.studentId) {
+      // Turn both into Course Refresh
+      headLogin.textContent = 'Course Refresh';
+      headLogin.title = 'Refresh your IRAS courses';
+      headLogin.onclick = () => { refreshCourses(); };
+      deskLogin.textContent = 'Course Refresh';
+      deskLogin.title = 'Refresh your IRAS courses';
+      deskLogin.onclick = () => { refreshCourses(); };
+
+      // Show per form factor
+      headLogin.style.display = isDesk ? 'none' : '';
+      deskLogin.style.display = isDesk ? '' : 'none';
+    } else {
+      headLogin.textContent = 'IRAS Login';
+      headLogin.title = 'Sign in with IRAS';
+      headLogin.onclick = () => { openIRASPopup(); };
+      deskLogin.textContent = 'IRAS Login';
+      deskLogin.title = 'Sign in with IRAS';
+      deskLogin.onclick = () => { openIRASPopup(); };
+
+      headLogin.style.display = isDesk ? 'none' : '';
+      deskLogin.style.display = isDesk ? '' : 'none';
+    }
+  }
+
   function updateAuthUI() {
     const auth = getIRASAuth();
     const headLogin = $('#btnIRASLoginHeader');
@@ -408,17 +450,12 @@
     const chip = $('#authChip');
 
     if (auth?.studentId) {
-      headLogin.style.display = 'none';
-      if (deskLogin) deskLogin.style.display = 'none';
       info.style.display = 'flex';
       chip.textContent = `${auth.studentName || 'Student'} (${auth.studentId})`;
-      // When logged in, try to show latest IRAS on demand (handled by render/load)
     } else {
       info.style.display = 'none';
-      const isDesk = window.matchMedia('(min-width: 769px)').matches;
-      headLogin.style.display = isDesk ? 'none' : '';
-      if (deskLogin) deskLogin.style.display = isDesk ? '' : 'none';
     }
+    wireAuthButtons();
   }
 
   // Receive auth from popup
@@ -433,7 +470,7 @@
     }
   });
 
-  // ---------- Backend load (now uses per-user backup only) ----------
+  // ---------- Backend load (per-user backup only) ----------
   function loadBackupForCurrentUser() {
     const auth = getIRASAuth();
     staticSections = [];
@@ -447,7 +484,6 @@
   }
 
   async function loadSectionsFromBackend() {
-    // No bundled static fetch anymore; only per-user backup if present
     loadBackupForCurrentUser();
     const tbody = $('#courseTbody');
     if (!staticSections.length && tbody) {
@@ -456,10 +492,16 @@
   }
 
   // ---------- IRAS offers load ----------
+  async function refreshCourses() {
+    // Explicit refresh action (button or programmatic)
+    await loadSectionsFromIRAS().then(() => renderAll());
+  }
+
   async function loadSectionsFromIRAS() {
     const auth = getIRASAuth();
     if (!auth?.studentId || !auth?.token) { irasSections = []; reindexAll(); return; }
 
+    setLoading(true);
     try {
       const response = await fetch(IRAS_API_URL, {
         method: 'POST',
@@ -502,6 +544,8 @@
         try { irasSections = JSON.parse(backup) || []; } catch { irasSections = []; }
         reindexAll();
       }
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -552,8 +596,7 @@
       if (q && !hay.includes(q)) return false;
       if (groupFilter && !inDayGroup(sec, groupFilter)) return false;
       if (availFilter) {
-        const { open } = seatStatus(sec);
-        const full = open === 0;
+        const full = sec.enrolled >= sec.capacity;
         if (availFilter === 'open' && full) return false;
         if (availFilter === 'full' && !full) return false;
       }
@@ -640,7 +683,7 @@
           <div class="card-sub">${sec.title || ''}</div>
           <div class="card-meta">
             <span class="small"><strong>Faculty:</strong> <span class="fac"></span></span>
-            <span class="small"><strong>Seats:</strong> <span class="${full ? 'avail full' : 'avail ok'}">${sec.enrolled}/${sec.capacity}</span></span>
+            <span class="small"><strong>Enrolled:</strong> <span class="${full ? 'avail full' : 'avail ok'}">${sec.enrolled}/${sec.capacity}</span></span>
           </div>
           <div class="card-actions">
             <button class="btn">Add To Plan</button>
@@ -654,15 +697,15 @@
   }
 
   function tryAddToPlan(sec, active) {
-    if (!active) return showToast('Create and select a plan first.');
+    if (!active) { alert('Create and select a plan first.'); return; }
     const existingItems = active.items.map(k => sectionByKey.get(k)).filter(Boolean);
     if (existingItems.some(x => x.course === sec.course)) {
-      showToast(`You can't choose two sections of the same course (${sec.course}). Remove the other section first.`);
+      alert(`You cannot choose two sections of the same course (${sec.course}). Remove the other section first.`);
       return;
     }
     const conflict = findConflictingWith(existingItems, sec);
     if (conflict) {
-      showToast(`Cannot add: ${sec.course} Sec-${sec.section} (${sec.timing.label}) conflicts with ${conflict.course} Sec-${conflict.section} (${conflict.timing.label}).`);
+      alert(`Cannot add:\n${sec.course} Sec-${sec.section} (${sec.timing.label}) conflicts with\n${conflict.course} Sec-${conflict.section} (${conflict.timing.label}).`);
       return;
     }
     const k = keyOf(sec);
@@ -709,6 +752,7 @@
         const dk = DAY_KEYS[d];
         header.innerHTML = `<strong>${DAY_NAME_MAP[dk]}</strong>`;
         col.appendChild(header);
+        for (let i=0;i*SLOTS.length;i++); // no-op safeguard
         for (let i=0;i<SLOTS.length;i++) {
           const line = document.createElement('div');
           line.style.position = 'absolute';
@@ -770,7 +814,7 @@
         label.textContent = slot.label;
         row.appendChild(label);
 
-        const inThisSlot = items.filter(s =>
+        const inThisSlot = (items || []).filter(s =>
           s.timing.days.includes(activeMobileDay) &&
           s.timing.start === slot.start &&
           s.timing.end === slot.end
@@ -949,29 +993,7 @@
     setTheme(current !== 'light');
   });
 
-  // IRAS auth controls
-  $('#btnIRASLoginHeader').addEventListener('click', openIRASPopup);
-  const deskBtn = document.getElementById('btnIRASLoginDesk');
-  if (deskBtn) deskBtn.addEventListener('click', openIRASPopup);
-  $('#btnIRASLogout').addEventListener('click', logoutIRAS);
-
-  // PWA: register service worker (unchanged)
-  (function registerSW() {
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', async () => {
-        try {
-          const reg = await navigator.serviceWorker.register('./sw.js');
-          navigator.serviceWorker.addEventListener('controllerchange', () => {
-            window.location.reload();
-          });
-        } catch (e) {
-          console.warn('SW registration failed:', e);
-        }
-      });
-    }
-  })();
-
-  // Mobile breakpoint watcher
+  // Also re-wire auth buttons on resize breakpoint changes
   mql.addEventListener('change', e => {
     isMobile = e.matches;
     updateAuthUI();
@@ -983,7 +1005,7 @@
   applyThemeOnLoad();
   loadAll();
   captureIRASAuthFromURL();     // picks up login callback
-  updateAuthUI();               // sets login UI
+  updateAuthUI();               // sets login/refresh visibility and auth chip
   loadSectionsFromBackend();    // per-user backup (if any)
   renderAll();
   updateHeaderCompact();
