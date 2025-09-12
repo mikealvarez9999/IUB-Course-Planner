@@ -1142,12 +1142,21 @@
 
   // ---------- Init ----------
   applyThemeOnLoad();
-  // Initialize in-memory default, then try loading remote plans if logged in
+
+  // Make sure there's at least an in-memory default before any render
   ensureDefaultPlans();
+  
+  // Capture auth if this is a redirect callback
   captureIRASAuthFromURL();
   updateAuthUI();
-  loadPlansFromServer().then(() => renderAll());  // fetch plans tied to account
-  loadSectionsFromBackend();    // per-user course backup (if any)
+  
+  // IMPORTANT: fetch saved plans tied to the account before first render
+  await loadPlansFromServer().catch(()=>{});
+  
+  // Load any per-user course backup (optional)
+  loadSectionsFromBackend();
+  
+  // Initial render; courses will update again when IRAS fetch finishes
   renderAll();
   updateHeaderCompact();
 </script>
