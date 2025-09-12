@@ -178,7 +178,7 @@ html[data-theme="light"] .tag { color:#0f172a; background:#e8efff; border-color:
   max-height: 700px; overflow: auto; border:1px solid var(--border); border-radius:8px;
   /* Keep right gutter for scrollbar so "Add To Plan" isn't under it */
   scrollbar-gutter: stable;
-  padding-right: 8px;
+  padding-right: 14px; /* a bit larger for PC scrollbars */
 }
 .table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .table th, .table td { border-bottom: 1px solid var(--border); padding: 8px; vertical-align: top; }
@@ -186,7 +186,7 @@ html[data-theme="light"] .tag { color:#0f172a; background:#e8efff; border-color:
 html[data-theme="light"] .table th { color:#334155; background:#f3f4f6; }
 
 /* Desktop: fixed layout that fits within the container.
-   Adjusted: Title column expanded a bit by taking from Faculty. */
+   Adjusted again: Faculty narrowed; Enrolled and Actions widened. */
 @media (min-width: 769px) {
   /* Show desktop IRAS button near Done; hide header login */
   #btnIRASLoginDesk { display:inline-block !important; }
@@ -197,19 +197,19 @@ html[data-theme="light"] .table th { color:#334155; background:#f3f4f6; }
   /* Percent widths sum to 100% to avoid overflow */
   .table col.col-course  { width: 10%; }
   .table col.col-sec     { width: 6%; }
-  .table col.col-time    { width: 16%; }  /* Day/Time; see min-width */
-  .table col.col-faculty { width: 30%; }  /* reduced from 33% */
-  .table col.col-title   { width: 18%; }  /* increased from 15% */
-  .table col.col-seats   { width: 8%; }
-  .table col.col-actions { width: 12%; }  /* enough for "Add To Plan" */
+  .table col.col-time    { width: 16%; }
+  .table col.col-faculty { width: 26%; }  /* reduced from 30% */
+  .table col.col-title   { width: 18%; }  /* keep previous expansion */
+  .table col.col-seats   { width: 10%; }  /* increased from 8% */
+  .table col.col-actions { width: 14%; }  /* increased from 12% */
 
   /* Minimums */
   .table th:nth-child(3),
   .table td:nth-child(3) { min-width: 170px; }    /* Day/Time */
   .table th:nth-child(6),
-  .table td:nth-child(6) { min-width: 90px; }     /* Enrolled numeric, a bit wider */
+  .table td:nth-child(6) { min-width: 100px; }    /* Enrolled label + numbers */
   .table th:nth-child(7),
-  .table td:nth-child(7) { min-width: 130px; padding-right: 10px; } /* extra right pad */
+  .table td:nth-child(7) { min-width: 140px; padding-right: 16px; } /* extra right pad */
 
   /* Keep the time chip on one line */
   .table td:nth-child(3) .tag { white-space: nowrap; display: inline-block; }
@@ -237,11 +237,12 @@ html[data-theme="light"] .table th { color:#334155; background:#f3f4f6; }
     word-break: break-word;
   }
 
-  /* Let the action button size to its text (no stretching) */
+  /* Keep the action button in from the edge */
   .table td:nth-child(7) .btn {
     width: auto;
     white-space: nowrap;
     min-width: 0;
+    margin-right: 4px; /* pull it a touch left from the gutter */
   }
 }
 
