@@ -752,7 +752,6 @@
         const dk = DAY_KEYS[d];
         header.innerHTML = `<strong>${DAY_NAME_MAP[dk]}</strong>`;
         col.appendChild(header);
-        for (let i=0;i*SLOTS.length;i++); // no-op safeguard
         for (let i=0;i<SLOTS.length;i++) {
           const line = document.createElement('div');
           line.style.position = 'absolute';
