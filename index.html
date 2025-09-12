@@ -105,14 +105,14 @@
           <button id="btnIRASLoginDesk" class="btn iras" type="button" title="Sign in with IRAS" style="display:none;">IRAS Login</button>
         </div>
 
-        <!-- Last refreshed (above table/cards). Also shows spinner beside it while loading -->
+        <!-- Last refreshed (above the table/cards) + spinner + backup badge -->
         <div class="row" style="gap:8px; align-items:center; margin-top: 6px;">
           <div id="courseRefreshInfo" class="footnote" style="margin-top:0;"></div>
           <div id="loadingSpinner" class="loading" style="display:none;">
             <span class="spinner" aria-hidden="true"></span>
             <span class="small">Loading courses…</span>
           </div>
-          <!-- Backup badge -->
+          <!-- Mini banner when showing server/LS backup -->
           <div id="backupBadge" class="pill small" style="display:none;">Showing last saved backup</div>
         </div>
 
@@ -151,7 +151,7 @@
         <!-- Mobile: cards -->
         <div class="cards" id="courseCards" aria-live="polite"></div>
 
-        <div class="footnote">Course list can be shown from IRAS when you’re signed in. Plans you make are saved locally in your browser.</div>
+        <div class="footnote">Course list can be shown from IRAS when you’re signed in. Plans you make are saved with your account.</div>
       </div>
     </div>
 
@@ -211,15 +211,18 @@
   const DAY_KEYS = ['A','S','M','T','W','R']; // No Friday
   const DAY_NAME_MAP = { A:'Sat', S:'Sun', M:'Mon', T:'Tue', W:'Wed', R:'Thu' };
   const DAY_MAP = Object.fromEntries(DAY_KEYS.map((k,i)=>[k,i]));
-  const STORAGE_PLANS = 'iub-plans-v8';
-  const STORAGE_THEME = 'iub-theme';
+  const STORAGE_THEME = 'iub-theme'; // plans no longer stored locally
 
-  // IRAS auth + source keys
+  // IRAS auth + endpoints
   const IRAS_AUTH_KEY = 'iras-auth-v1';
   const IRAS_OFFERS_CACHE_PREFIX = 'iras-offers-';
   const IRAS_API_URL = 'https://iras-bridge.vercel.app/api/iras-offers';
 
-  // Per-user static backup (from last successful IRAS load)
+  // Plans API (bridge)
+  const PLANS_API_LOAD = 'https://iras-bridge.vercel.app/api/plans/latest';
+  const PLANS_API_SAVE = 'https://iras-bridge.vercel.app/api/plans/save';
+
+  // Per-user course backup keys (kept for offers only)
   function getIrasBackupKey(studentId) { return `iub-courses-backup-${studentId}`; }
   function getIrasBackupTimeKey(studentId) { return `iub-courses-backup-time-${studentId}`; }
 
@@ -237,9 +240,9 @@
   const DAY_GROUPS = { ST: ['S','T'], MW: ['M','W'], AR: ['A','R'] };
 
   // ---------- State ----------
-  let staticSections = [];  // per-user backup
-  let irasSections = [];    // from IRAS API
-  let plans = [];    // [{id,name,items:[sectionKey]}]
+  let staticSections = [];  // per-user backup (courses)
+  let irasSections = [];    // from IRAS API (courses)
+  let plans = [];           // [{id,name,items:[sectionKey]}]
   let activePlanId = null;
   const sectionByKey = new Map();
   let activeMobileDay = 'S';
@@ -247,6 +250,7 @@
   let isMobile = mql.matches;
   let authPopup = null;
   let isLoadingCourses = false;
+  let savePlansTimer = null;
 
   // ---------- Utilities ----------
   const $ = sel => document.querySelector(sel);
@@ -263,7 +267,7 @@
     if (!s) return null;
     let t = String(s).trim();
     t = t.replace(/[^0-9]/g, '');
-    if (t.length === 3) t = '0' + t; // "900" -> "0900"
+    if (t.length === 3) t = '0' + t;
     const m = t.match(/^(\d{2})(\d{2})$/);
     if (!m) return null;
     return parseInt(m[1],10)*60 + parseInt(m[2],10);
@@ -281,22 +285,6 @@
   }
   function keyOf(sec) {
     return `${sec.course}|${sec.section}|${sec.timing.label}|${(sec.faculty||'').trim()}`;
-  }
-  function saveAll() {
-    localStorage.setItem(STORAGE_PLANS, JSON.stringify({ plans, activePlanId }));
-  }
-  function loadAll() {
-    try {
-      const p = JSON.parse(localStorage.getItem(STORAGE_PLANS) || '{}');
-      if (Array.isArray(p.plans)) plans = p.plans;
-      if (p.activePlanId) activePlanId = p.activePlanId;
-    } catch {}
-    if (!Array.isArray(plans) || plans.length === 0) {
-      const id = 'p_' + Math.random().toString(36).slice(2);
-      plans = [{ id, name: 'Plan A', items: [] }];
-      activePlanId = id;
-      saveAll();
-    }
   }
   function updateThemeMeta(theme) {
     const meta = document.querySelector('meta[name="theme-color"]');
@@ -341,7 +329,7 @@
     clearTimeout(showToast._timer); showToast._timer = setTimeout(()=>t.classList.remove('show'), 2800);
   }
   function slotIndexFor(start, end) {
-    for (let i=0;i>SLOTS.length;i++) if (SLOTS[i].start===start && SLOTS[i].end===end) return i;
+    for (let i=0;i<SLOTS.length;i++) if (SLOTS[i].start===start && SLOTS[i].end===end) return i;
     return -1;
   }
   function inDayGroup(sec, groupKey) {
@@ -351,7 +339,6 @@
 
   // ---------- IRAS Auth ----------
   function buildRedirectURI() {
-    // Return to the same path to keep origin consistent for postMessage
     return window.location.origin + window.location.pathname;
   }
   function getIRASAuth() {
@@ -364,7 +351,6 @@
     localStorage.removeItem(IRAS_AUTH_KEY);
   }
   function captureIRASAuthFromURL() {
-    // If this window was opened as a popup and has auth params, send them to opener then close.
     const url = new URL(window.location.href);
     const qp = url.searchParams;
     const token = qp.get('token');
@@ -379,15 +365,12 @@
         email: qp.get('email') || '',
         ts: Date.now()
       };
-      // If popup -> post to opener
       if (window.opener && typeof window.opener.postMessage === 'function') {
         window.opener.postMessage({ type: 'IRAS_AUTH', payload: auth }, window.location.origin);
         window.close();
         return true;
       }
-      // Fallback: store locally (full-page redirect case)
       setIRASAuth(auth);
-      // Clean URL
       ['token','studentId','studentName','departmentName','degreeName','email'].forEach(k => qp.delete(k));
       history.replaceState({}, document.title, url.pathname + (qp.toString() ? '?' + qp.toString() : '') + url.hash);
       return true;
@@ -404,7 +387,73 @@
     if (!authPopup) window.location.href = url;
   }
 
-  // UPDATED: make logout visually clear immediately
+  // ---------- Plans: server sync (no localStorage) ----------
+  function ensureDefaultPlans() {
+    if (!Array.isArray(plans) || plans.length === 0) {
+      const id = 'p_' + Math.random().toString(36).slice(2);
+      plans = [{ id, name: 'Plan A', items: [] }];
+      activePlanId = id;
+    } else if (!activePlanId) {
+      activePlanId = plans[0].id;
+    }
+  }
+
+  async function loadPlansFromServer() {
+    const auth = getIRASAuth();
+    if (!auth?.studentId || !auth?.token) { ensureDefaultPlans(); return; }
+    try {
+      const r = await fetch(PLANS_API_LOAD, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId: auth.studentId, token: auth.token })
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const j = await r.json();
+      const data = j?.data || {};
+      if (Array.isArray(data.plans) && data.plans.length > 0) {
+        plans = data.plans;
+        activePlanId = data.activePlanId || data.plans[0]?.id || null;
+      } else {
+        // No saved plans yet — initialize default in-memory; will save on first change
+        ensureDefaultPlans();
+      }
+    } catch (e) {
+      console.warn('Plans load failed:', e);
+      ensureDefaultPlans();
+    }
+  }
+
+  async function savePlansToServer() {
+    const auth = getIRASAuth();
+    if (!auth?.studentId || !auth?.token) return; // not logged in — cannot save
+    try {
+      const r = await fetch(PLANS_API_SAVE, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId: auth.studentId, token: auth.token, plans, activePlanId })
+      });
+      // Silent on success/failure — we keep UI snappy
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+    } catch (e) {
+      console.warn('Plans save failed:', e);
+      showToast('Could not save your plans right now.');
+    }
+  }
+
+  function saveAll() {
+    // Debounced remote save
+    clearTimeout(savePlansTimer);
+    savePlansTimer = setTimeout(() => { savePlansToServer(); }, 500);
+  }
+
+  function resetPlansToDefault() {
+    const id = 'p_' + Math.random().toString(36).slice(2);
+    plans = [{ id, name: 'Plan A', items: [] }];
+    activePlanId = id;
+  }
+
+  // ---------- Courses (IRAS) ----------
+  // UPDATED: make logout visually clear immediately (and wipe in-memory plans)
   function logoutIRAS() {
     clearIRASAuth();
 
@@ -425,6 +474,9 @@
     const infoBox = document.getElementById('courseRefreshInfo');
     if (infoBox) infoBox.textContent = '';
 
+    // Reset plans to a clean default so another user's plans aren't visible
+    resetPlansToDefault();
+
     renderAll();
     showToast('Logged out.');
   }
@@ -440,7 +492,6 @@
     const isDesk = window.matchMedia('(min-width: 769px)').matches;
 
     if (auth?.studentId) {
-      // Turn both into Course Refresh
       headLogin.textContent = 'Course Refresh';
       headLogin.title = 'Refresh your IRAS courses';
       headLogin.onclick = () => { refreshCourses(); };
@@ -448,7 +499,6 @@
       deskLogin.title = 'Refresh your IRAS courses';
       deskLogin.onclick = () => { refreshCourses(); };
 
-      // Show per form factor
       headLogin.style.display = isDesk ? 'none' : '';
       deskLogin.style.display = isDesk ? '' : 'none';
     } else {
@@ -466,8 +516,6 @@
 
   function updateAuthUI() {
     const auth = getIRASAuth();
-    const headLogin = $('#btnIRASLoginHeader');
-    const deskLogin = $('#btnIRASLoginDesk');
     const info = $('#authInfo');
     const chip = $('#authChip');
 
@@ -488,6 +536,8 @@
       const auth = event.data.payload;
       setIRASAuth(auth);
       updateAuthUI();
+      // Load server plans as soon as we have auth, then IRAS offers
+      loadPlansFromServer().then(() => renderAll());
       loadSectionsFromIRAS().then(() => renderAll());
       try { if (authPopup && !authPopup.closed) authPopup.close(); } catch {}
     }
@@ -516,7 +566,6 @@
 
   // ---------- IRAS offers load ----------
   async function refreshCourses() {
-    // Explicit refresh action (button or programmatic)
     await loadSectionsFromIRAS().then(() => renderAll());
   }
 
@@ -549,21 +598,16 @@
       const raw = await response.json();
 
       // Back-compat handling:
-      // - Some bridges return { success:true, data:{eligibleOfferCourses:[...] } } without "source".
-      // - New bridge returns { ok:true, source:'iras'|'backup'|'none', data:{eligibleOfferCourses:[...] } }.
       const offersRaw = (raw && raw.data && Array.isArray(raw.data.eligibleOfferCourses))
         ? raw.data.eligibleOfferCourses
         : [];
       let source = raw && raw.source ? raw.source : '';
-
-      // If no source is provided, infer it from the presence of offers
       if (!source) {
         if (offersRaw.length > 0) source = 'iras';
         else if (raw?.success === true || raw?.ok === true) source = 'none';
       }
 
       if (source === 'iras' && offersRaw.length > 0) {
-        // Fresh IRAS -> map, persist local backup and timestamp
         irasSections = offersRaw.map(mapIRASRow).filter(Boolean);
         localStorage.setItem(getIrasBackupKey(auth.studentId), JSON.stringify(irasSections));
         localStorage.setItem(getIrasBackupTimeKey(auth.studentId), new Date().toISOString());
@@ -575,7 +619,6 @@
       }
 
       if (source === 'backup' && offersRaw.length > 0) {
-        // Server backup -> map and use; store locally too (so LS stays in sync)
         irasSections = offersRaw.map(mapIRASRow).filter(Boolean);
         localStorage.setItem(getIrasBackupKey(auth.studentId), JSON.stringify(irasSections));
         localStorage.setItem(getIrasBackupTimeKey(auth.studentId), new Date().toISOString());
@@ -586,7 +629,6 @@
         return;
       }
 
-      // source === 'none' OR empty array -> try localStorage fallback
       const ls = localStorage.getItem(getIrasBackupKey(auth.studentId));
       if (ls) {
         try {
@@ -601,7 +643,6 @@
         } catch {}
       }
 
-      // No backup found anywhere — show friendly message
       irasSections = [];
       reindexAll();
       if (errBox) {
@@ -615,7 +656,6 @@
     } catch (e) {
       console.warn('IRAS offers fetch failed:', e);
 
-      // Network/other error -> fallback to per-user local backup if available
       const studentId = getIRASAuth()?.studentId || '';
       const backup = studentId && localStorage.getItem(getIrasBackupKey(studentId));
       if (backup) {
@@ -639,7 +679,7 @@
     }
   }
 
-  // Map IRAS row -> internal section object (based on your sample)
+  // Map IRAS row -> internal section object
   function mapIRASRow(c) {
     if (!c) return null;
     const course = c.courseId || 'UNKNOWN';
@@ -648,7 +688,6 @@
     const faculty = c.facualtyName || c.facultyName || c.faculty || '';
     const timing = parseDaysTime(c.timeSlot || '');
     const capacity = parseInt(c.capacity || 0, 10) || 0;
-    // prefer enrolled if present; otherwise derive from vacancy
     let enrolled = Number.isFinite(parseInt(c.enrolled, 10)) ? parseInt(c.enrolled, 10) : (capacity - (parseInt(c.vacancy || 0, 10) || 0));
     if (!Number.isFinite(enrolled)) enrolled = 0;
     const credits = parseInt(c.creditHour || 0, 10) || 0;
@@ -657,7 +696,6 @@
 
   // ---------- Rendering ----------
   function getActiveList() {
-    // Automatic: prefer IRAS if available; otherwise fallback to per-user backup; otherwise empty
     if (irasSections.length > 0) return irasSections;
     if (staticSections.length > 0) return staticSections;
     return [];
@@ -665,6 +703,7 @@
 
   function renderPlans() {
     const cont = $('#plans'); cont.innerHTML = '';
+    ensureDefaultPlans();
     for (const p of plans) {
       const btn = document.createElement('button');
       btn.className = 'plan' + (p.id === activePlanId ? ' active' : '');
@@ -700,7 +739,6 @@
     const cards = $('#courseCards');
     const infoBox = $('#courseRefreshInfo');
 
-    // Show "Last refreshed" (IRAS or backup)
     infoBox.textContent = '';
     const auth = getIRASAuth();
     if (auth?.studentId) {
@@ -711,7 +749,6 @@
       }
     }
 
-    // If nothing to show yet
     if (list.length === 0) {
       $('#tableWrap').style.display = isMobile ? 'none' : '';
       cards.style.display = isMobile ? 'grid' : 'none';
@@ -724,7 +761,6 @@
     }
 
     if (!isMobile) {
-      // Desktop: table
       $('#tableWrap').style.display = '';
       cards.style.display = 'none';
       tbody.innerHTML = '';
@@ -755,7 +791,6 @@
         tbody.appendChild(tr);
       }
     } else {
-      // Mobile: cards
       $('#tableWrap').style.display = 'none';
       cards.style.display = 'grid';
       cards.innerHTML = '';
@@ -934,6 +969,7 @@
   }
 
   function renderPlanList() {
+    ensureDefaultPlans();
     const plan = plans.find(p => p.id === activePlanId);
     const items = (plan?.items || []).map(k => sectionByKey.get(k)).filter(Boolean);
     const list = $('#planList');
@@ -1003,7 +1039,6 @@
       .setAttribute('aria-expanded', open ? 'true' : 'false');
   };
 
-  // When backdrop is tapped: close, then re-dispatch the tap to what's underneath
   document.getElementById('filtersBackdrop').addEventListener('click', (e) => {
     const { clientX, clientY } = e;
     closeFiltersSheet();
@@ -1015,7 +1050,6 @@
 
   document.getElementById('btnCloseFilters').onclick = () => closeFiltersSheet();
 
-  // Safety: any interaction with the Plans panel closes the sheet first
   document.getElementById('planPanel').addEventListener('pointerdown', () => closeFiltersSheet());
 
   // ---------- Events ----------
@@ -1062,6 +1096,7 @@
     if (!ok) return;
     plans.splice(idx, 1);
     activePlanId = plans[0]?.id || null;
+    ensureDefaultPlans();
     saveAll(); renderAll();
   };
 
@@ -1082,6 +1117,9 @@
     setTheme(current !== 'light');
   });
 
+  // Logout button
+  document.getElementById('btnIRASLogout').addEventListener('click', logoutIRAS);
+
   // Also re-wire auth buttons on resize breakpoint changes
   mql.addEventListener('change', e => {
     isMobile = e.matches;
@@ -1092,10 +1130,12 @@
 
   // ---------- Init ----------
   applyThemeOnLoad();
-  loadAll();
-  captureIRASAuthFromURL();     // picks up login callback
-  updateAuthUI();               // sets login/refresh visibility and auth chip
-  loadSectionsFromBackend();    // per-user backup (if any)
+  // Initialize in-memory default, then try loading remote plans if logged in
+  ensureDefaultPlans();
+  captureIRASAuthFromURL();
+  updateAuthUI();
+  loadPlansFromServer().then(() => renderAll());  // fetch plans tied to account
+  loadSectionsFromBackend();    // per-user course backup (if any)
   renderAll();
   updateHeaderCompact();
 </script>
