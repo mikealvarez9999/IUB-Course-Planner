@@ -1,6 +1,7 @@
 ﻿export function initPlannerRuntime(html2canvas) {
     const IRAS_AUTH_LOGIN_URL = 'https://iras-auth.pages.dev/login';
     const IRAS_OFFERS_URL = 'https://irastools.pages.dev/api/student/all-offer-courses';
+  const IRAS_PREREQ_PROXY_URL = '/api/prerequisites';
 
   if (typeof window === 'undefined') return () => {};
   if (window.__IUB_PLANNER_BOOTED) return () => {};
@@ -34,6 +35,7 @@
     { start: 13*60,       end: 14*60+30, label: '13:00-14:30' },
     { start: 14*60+40,    end: 16*60+10, label: '14:40-16:10' },
     { start: 16*60+20,    end: 17*60+50, label: '16:20-17:50' },
+    { start: 18*60+30,    end: 21*60+30, label: '18:30-21:30' },
   ];
   const SLOT_HEIGHT = 100;
   const HEADER_OFFSET = 24;
@@ -51,6 +53,8 @@
   let authPopup = null;
   let isLoadingCourses = false;
   let savePlansTimer = null;
+  let prereqLoadedForStudentId = null;
+  let prereqByCourse = new Map();
 
   // ---------- Utilities ----------
   const $ = sel => document.querySelector(sel);
@@ -149,6 +153,87 @@
   function inDayGroup(sec, groupKey) {
     const group = DAY_GROUPS[groupKey]; if (!group) return true;
     return sec.timing.days.some(d => group.includes(d));
+  }
+
+  function toCourseCode(v) {
+    return String(v || '').trim().toUpperCase();
+  }
+
+  function hasPassedPrereq(row) {
+    const grade = String(row?.grade || '').trim().toUpperCase();
+    if (grade) return grade !== 'F' && grade !== 'Z';
+    const gp = Number(row?.gradePoint);
+    return Number.isFinite(gp) ? gp > 0 : false;
+  }
+
+  function buildPrereqIndex(rows) {
+    const grouped = new Map();
+    for (const row of (rows || [])) {
+      const courseId = toCourseCode(row?.courseId);
+      if (!courseId) continue;
+      if (!grouped.has(courseId)) grouped.set(courseId, []);
+      grouped.get(courseId).push(row);
+    }
+
+    const index = new Map();
+    grouped.forEach((entries, courseId) => {
+      const failed = entries.filter((r) => !hasPassedPrereq(r));
+      if (failed.length === 0) {
+        index.set(courseId, { eligible: true, reason: '' });
+        return;
+      }
+      const missing = failed
+        .map((r) => toCourseCode(r?.preReqCourseId))
+        .filter(Boolean)
+        .join(', ');
+      index.set(courseId, {
+        eligible: false,
+        reason: missing
+          ? `Missing/failed prerequisites: ${missing}`
+          : 'Prerequisite requirements are not satisfied.'
+      });
+    });
+
+    prereqByCourse = index;
+  }
+
+  function getEligibility(courseId) {
+    const code = toCourseCode(courseId);
+    return prereqByCourse.get(code) || { eligible: true, reason: '' };
+  }
+
+  async function loadPrerequisitesFromIRAS(force = false) {
+    const auth = getIRASAuth();
+    if (!auth?.studentId || !auth?.token) {
+      prereqLoadedForStudentId = null;
+      prereqByCourse = new Map();
+      return;
+    }
+
+    if (!force && prereqLoadedForStudentId === auth.studentId && prereqByCourse.size > 0) {
+      return;
+    }
+
+    const response = await fetch(IRAS_PREREQ_PROXY_URL, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        studentId: auth.studentId,
+        token: auth.token
+      })
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || String(payload?.message || '').toLowerCase() === 'invalid request') {
+      throw new Error(payload?.message || ('Prerequisite API HTTP ' + response.status));
+    }
+
+    buildPrereqIndex(Array.isArray(payload?.data) ? payload.data : []);
+    prereqLoadedForStudentId = auth.studentId;
   }
 
   // ---------- IRAS Auth ----------
@@ -262,6 +347,8 @@
     irasSections = [];
     staticSections = [];           // <-- ADD THIS
     reindexAll();
+    prereqLoadedForStudentId = null;
+    prereqByCourse = new Map();
 
     // Hide the chip right away and clear its text
     const info = document.getElementById('authInfo');
@@ -339,6 +426,10 @@
         const auth = event.data.payload;
         setIRASAuth(auth);
         updateAuthUI();         // wires buttons (so IRAS Login becomes Course Refresh)
+        await loadPrerequisitesFromIRAS(true).catch((e) => {
+          console.warn('Prerequisite load failed:', e);
+          showToast('Could not validate prerequisites right now.');
+        });
         // Load plans first, then courses, then render
         await loadPlansFromServer().catch(()=>{});
         await loadSectionsFromIRAS().catch(()=>{});
@@ -397,8 +488,17 @@
     if (!auth?.studentId || !auth?.token) {
       irasSections = [];
       reindexAll();
+      prereqLoadedForStudentId = null;
+      prereqByCourse = new Map();
       if (typeof migratePlanItemsIfPossible === 'function') migratePlanItemsIfPossible();
       return;
+    }
+
+    try {
+      await loadPrerequisitesFromIRAS();
+    } catch (e) {
+      console.warn('Prerequisite load failed:', e);
+      showToast('Could not validate prerequisites right now.');
     }
   
     setLoading(true);
@@ -605,17 +705,17 @@
       for (const sec of list) {
         const tr = document.createElement('tr');
         const full = sec.enrolled >= sec.capacity;
+        const eligibility = getEligibility(sec.course);
 
         tr.innerHTML = `
-          <td class="nowrap"><strong>${sec.course}</strong></td>
+          <td class="nowrap"><strong class="${eligibility.eligible ? 'course-eligible' : 'course-ineligible'}">${sec.course}</strong></td>
           <td>${sec.section}</td>
           <td><span class="tag">${sec.timing.label}</span></td>
-          <td class="wrap"></td>
-          <td class="wrap">${sec.title || ''}</td>
+          <td class="wrap ${eligibility.eligible ? 'course-eligible' : 'course-ineligible'}">${sec.faculty || ''}</td>
+          <td class="wrap ${eligibility.eligible ? 'course-eligible' : 'course-ineligible'}">${sec.title || ''}</td>
           <td class="right"><span class="avail ${full ? 'full' : 'ok'}">${sec.enrolled}/${sec.capacity}</span></td>
           <td class="actions"></td>
         `;
-        tr.children[3].textContent = sec.faculty || '';
 
         const actions = tr.querySelector('.actions');
         const btnAdd = document.createElement('button');
@@ -634,14 +734,15 @@
 
       for (const sec of list) {
         const full = sec.enrolled >= sec.capacity;
+        const eligibility = getEligibility(sec.course);
         const card = document.createElement('div');
         card.className = 'card';
         card.innerHTML = `
           <div class="card-top">
-            <div class="card-title">${sec.course} * Sec ${sec.section}</div>
+            <div class="card-title ${eligibility.eligible ? 'course-eligible' : 'course-ineligible'}"><span>${sec.course}</span><span class="card-sec-inline">Sec ${sec.section}</span></div>
             <div class="tag">${sec.timing.label}</div>
           </div>
-          <div class="card-sub">${sec.title || ''}</div>
+          <div class="card-sub ${eligibility.eligible ? 'course-eligible' : 'course-ineligible'}">${sec.title || ''}</div>
           <div class="card-meta">
             <span class="small"><strong>Faculty:</strong> <span class="fac"></span></span>
             <span class="small"><strong>Enrolled:</strong> <span class="${full ? 'avail full' : 'avail ok'}">${sec.enrolled}/${sec.capacity}</span></span>
@@ -689,6 +790,12 @@
     }
   }
   function tryAddToPlan(sec, active) {
+    const eligibility = getEligibility(sec.course);
+    if (!eligibility.eligible) {
+      alert(`Cannot add ${sec.course}.\n${eligibility.reason || 'Prerequisite requirements are not satisfied.'}`);
+      return;
+    }
+
     if (!active) { alert('Create and select a plan first.'); return; }
     const existingItems = active.items.map(k => sectionByKey.get(k)).filter(Boolean);
     if (existingItems.some(x => x.course === sec.course)) {
@@ -1155,6 +1262,9 @@
   
     // Show correct header buttons now
     updateAuthUI();
+
+    // Preload prerequisite status for list coloring and add validation.
+    loadPrerequisitesFromIRAS().then(() => { renderAll(); }).catch(()=>{});
   
     // Kick off async loads without blocking/wedging the script
     loadPlansFromServer().then(() => { renderAll(); }).catch(()=>{ /* keep UI */ });

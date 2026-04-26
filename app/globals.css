@@ -251,9 +251,16 @@ html[data-theme="light"] .table th { color:#334155; background:#f3f4f6; }
 .card { border: 1px solid var(--border); border-radius: var(--radius); background: #0f1520; padding: 10px; display: grid; gap: 6px; }
 html[data-theme="light"] .card { background:#ffffff; }
 .card-top { display:flex; justify-content:space-between; align-items:center; gap:8px; }
-.card-title { font-weight: 700; }
+.card-title { font-weight: 700; display:flex; align-items:baseline; gap:6px; }
+.card-sec-inline { font-size: var(--font-small); font-weight: 500; }
+.course-eligible { color: var(--ok); }
+.course-ineligible { color: var(--danger); }
 .card-sub { color:#b8c5d6; font-size: var(--font-small); }
+.card-sub.course-eligible { color: var(--ok); }
+.card-sub.course-ineligible { color: var(--danger); }
 html[data-theme="light"] .card-sub { color:#334155; }
+html[data-theme="light"] .card-sub.course-eligible { color: var(--ok); }
+html[data-theme="light"] .card-sub.course-ineligible { color: var(--danger); }
 .card-meta { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
 .card-actions { display:flex; gap:8px; }
 
