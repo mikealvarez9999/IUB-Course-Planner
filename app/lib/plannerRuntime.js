@@ -1,252 +1,29 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <title>IUB Course Planner</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- Canonical -->
-  <link rel="canonical" href="https://iub-course-planner.vercel.app/" />
-  
-  <!-- Open Graph -->
-  <meta property="og:title" content="IUB Course Planner" />
-  <meta property="og:description" content="Build conflict‑free course plans from IRAS course offers. Fast, mobile‑friendly, and option to export your plan as JPG." />
-  <meta property="og:type" content="website" />
-  <!-- Omit og:url so crawlers use the current page URL -->
-  <meta property="og:image" content="/social/og-image-1200x630.jpg" />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="IUB Course Planner: sample weekly grid with selected sections" />
-  <meta property="og:site_name" content="IUB Course Planner" />
-  
-  <!-- Twitter -->
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="IUB Course Planner" />
-  <meta name="twitter:description" content="Build conflict‑free course plans from real IRAS offers. Fast, mobile‑friendly, and export your plan as JPG." />
-  <meta name="twitter:image" content="/social/og-image-1200x630.jpg" />
+﻿import { IRAS_AUTH_LOGIN_URL, IRAS_OFFERS_URL } from '../../api/routes/endpoints';
 
-  <!-- PWA: theme color (updated dynamically by JS when theme changes) -->
-  <meta name="theme-color" content="#121821" />
-  <!-- iOS PWA enhancements -->
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="manifest" href="manifest.webmanifest" />
+export function initPlannerRuntime(html2canvas) {
+  if (typeof window === 'undefined') return () => {};
+  if (window.__IUB_PLANNER_BOOTED) return () => {};
+  window.__IUB_PLANNER_BOOTED = true;
 
-  <link rel="stylesheet" href="styles.css" />
-  <script src="vendor/html2canvas.min.js"></script>  
-  <!-- Google Analytics (GA4) — unchanged, add your ID if you use GA -->
-  <script>
-    (function initGA() {
-      const GA_ID = 'G-DW57CD9V2F'; // TODO: replace with your GA4 Measurement ID
-      if (GA_ID && GA_ID.startsWith('G-') && GA_ID == 'G-DW57CD9V2F') {
-        const s = document.createElement('script');
-        s.async = true;
-        s.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA_ID;
-        document.head.appendChild(s);
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){ dataLayer.push(arguments); }
-        window.gtag = gtag;
-        gtag('js', new Date());
-        gtag('config', GA_ID, { send_page_view: true });
-      }
-    })();
-  </script>
-</head>
-<body>
-  <header id="appHeader">
-    <div class="brand">
-      <h1>IUB Course Planner</h1>
-      <div class="sub">Created with curiosity by Raiyan Bin Rais</div>
-    </div>
-    <div class="spacer"></div>
-
-    <!-- IRAS Auth UI -->
-    <div id="authBox" class="auth-box">
-      <!-- This button becomes "Course Refresh" after login -->
-      <button id="btnIRASLoginHeader" class="btn small iras" type="button" title="Sign in with IRAS">IRAS Login</button>
-      <div id="authInfo" class="auth-info" style="display:none;">
-        <span id="authChip" class="auth-chip" title="Signed in"></span>
-        <button id="btnIRASLogout" class="btn alt small" type="button">Logout</button>
-      </div>
-    </div>
-
-    <!-- Theme toggle -->
-    <button id="themeToggleBtn" class="theme-switch" aria-label="Toggle theme" title="Toggle theme">
-      <span class="ts-icon ts-moon" aria-hidden="true">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 1 0 9.79 9.79z"></path>
-        </svg>
-      </span>
-      <span class="ts-icon ts-sun" aria-hidden="true">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <path d="M6.76 4.84l-1.8-1.79L3.17 4.84l1.79 1.79 1.8-1.79zM1 13h3v-2H1v2zm10 10h2v-3h-2v3zm9.83-3.16l-1.79-1.79-1.8 1.79 1.8 1.79 1.79-1.79zM20 11v2h3v-2h-3zM12 1h-2v3h2V1zm6.24 3.84l1.79-1.79-1.79-1.79-1.8 1.79 1.8 1.79zM12 6a6 6 0 100 12 6 6 0 000-12zM4.84 17.24l-1.79 1.79 1.79 1.79 1.79-1.79-1.79-1.79z"></path>
-        </svg>
-      </span>
-      <span class="ts-knob" aria-hidden="true"></span>
-    </button>
-  </header>
-
-  <div class="container">
-    <!-- Left: courses -->
-    <div class="panel courses" id="coursesPanel">
-      <div class="body">
-        <h2>Courses</h2>
-
-        <!-- Mobile-only helper text -->
-        <div class="mobile-hint mobile-only small">
-          Course list is really long, I'd suggest searching for specific courses instead of scrolling down manually.
-        </div>
-
-        <!-- Top row: search + mobile Filters button -->
-        <div class="toolbar">
-          <input type="text" id="search" placeholder="Search course code/title/faculty" />
-          <button class="btn" id="btnToggleFilters" aria-expanded="false" aria-controls="filtersWrap">Filters</button>
-        </div>
-
-        <!-- Filters row (desktop inline; mobile bottom sheet) -->
-        <div id="filtersBackdrop" aria-hidden="true"></div>
-        <div class="filtersWrap" id="filtersWrap">
-          <select id="filterDay" aria-label="Filter by schedule">
-            <option value="">All schedules</option>
-            <option value="ST">ST (Sun–Tue)</option>
-            <option value="MW">MW (Mon–Wed)</option>
-            <option value="AR">AR (Sat–Thu)</option>
-          </select>
-          <select id="filterAvail" aria-label="Filter by availability">
-            <option value="">Any availability</option>
-            <option value="open">Open seats</option>
-            <option value="full">Full</option>
-          </select>
-
-          <!-- Put Done first, IRAS/Refresh second (so button is right of Done on desktop) -->
-          <button class="btn alt mobile-only" id="btnCloseFilters">Done</button>
-          <!-- This button becomes "Course Refresh" after login on desktop -->
-          <button id="btnIRASLoginDesk" class="btn iras" type="button" title="Sign in with IRAS" style="display:none;">IRAS Login</button>
-        </div>
-
-        <!-- Last refreshed (above the table/cards) + spinner + backup badge -->
-        <div class="row" style="gap:8px; align-items:center; margin-top: 6px;">
-          <div id="courseRefreshInfo" class="footnote" style="margin-top:0;"></div>
-          <div id="loadingSpinner" class="loading" style="display:none;">
-            <span class="spinner" aria-hidden="true"></span>
-            <span class="small">Loading courses…</span>
-          </div>
-          <!-- Mini banner when showing server/LS backup -->
-          <div id="backupBadge" class="pill small" style="display:none;">Showing last saved backup</div>
-        </div>
-
-        <div id="courseError" class="footnote" style="display:none; color:#ff4d4f;"></div>
-
-        <!-- Desktop: table -->
-        <div class="table-wrap" id="tableWrap">
-          <table class="table" id="courseTable" role="table" aria-label="Courses">
-            <!-- Static colgroup to control column widths -->
-            <colgroup>
-              <col class="col-course" />
-              <col class="col-sec" />
-              <col class="col-time" />
-              <col class="col-faculty" />
-              <col class="col-title" />
-              <col class="col-seats" />
-              <col class="col-actions" />
-            </colgroup>
-            <thead>
-              <tr>
-                <th>Course</th>
-                <th>Sec</th>
-                <th>Days/Time</th>
-                <th>Faculty</th>
-                <th>Title</th>
-                <th class="right">Enrolled</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="courseTbody">
-              <tr><td colspan="7" class="small">Loading courses…</td></tr>
-            </tbody>
-          </table>
-        </div>
-
-        <!-- Mobile: cards -->
-        <div class="cards" id="courseCards" aria-live="polite"></div>
-
-        <div class="footnote">Course list can be shown from IRAS when you’re signed in. Plans you make are saved locally (temporarily, if you sign out they're gone). I'm currently working to make them stick to your account (will be in future updates, soon).</div>
-      </div>
-    </div>
-
-    <!-- Right: plans + schedule -->
-    <div class="panel" id="planPanel">
-      <div class="body">
-        <h2>Plans</h2>
-        <div class="row" style="margin-bottom:8px">
-          <div class="plans" id="plans"></div>
-          <button class="btn plan new" id="btnQuickAddPlan" title="New plan">+ New Plan</button>
-        </div>
-        <div class="row" style="margin-bottom:8px">
-          <input type="text" id="newPlanName" placeholder="New plan name (optional)" />
-          <button class="btn accent" id="btnAddPlan">Add Plan</button>
-          <button class="btn" id="btnRenamePlan">Rename</button>
-          <button class="btn" id="btnDuplicatePlan">Duplicate</button>
-          <button class="btn danger" id="btnDeletePlan">Delete</button>
-        </div>
-
-        <div style="border-top:1px solid var(--border); margin:10px 0"></div>
-
-        <div class="legend">
-          <div class="pill">A: Sat</div>
-          <div class="pill">S: Sun</div>
-          <div class="pill">M: Mon</div>
-          <div class="pill">T: Tue</div>
-          <div class="pill">W: Wed</div>
-          <div class="pill">R: Thu</div>
-        </div>
-
-        <div class="plan-title" id="planTitle">Plan A</div>
-
-        <!-- Mobile day tabs -->
-        <div class="day-tabs" id="dayTabs" aria-label="Select day"></div>
-
-        <!-- Desktop schedule grid -->
-        <div class="schedule desktop" id="schedule"></div>
-
-        <!-- Mobile schedule list -->
-        <div class="m-schedule" id="mSchedule" style="display:none;"></div>
-
-        <div style="margin-top:12px;">
-          <div class="row" style="justify-content: space-between;">
-            <div class="small">Conflicts are prevented on add.</div>
-            <button class="btn" id="btnExportPlan">Export this plan (JPG)</button>
-            <button class="btn" id="btnClearActive">Clear active plan</button>
-          </div>
-          <div class="section-list" id="planList" style="margin-top:8px;"></div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div id="toast" role="status" aria-live="polite"></div>
-
-<script>
   // ---------- Config ----------
   const DAY_KEYS = ['A','S','M','T','W','R']; // No Friday
   const DAY_NAME_MAP = { A:'Sat', S:'Sun', M:'Mon', T:'Tue', W:'Wed', R:'Thu' };
   const DAY_MAP = Object.fromEntries(DAY_KEYS.map((k,i)=>[k,i]));
-  const STORAGE_THEME = 'iub-theme'; // plans no longer stored locally
+  const STORAGE_THEME = 'iub-theme';
+  const PLANS_STORAGE_PREFIX = 'iub-plans';
 
   // IRAS auth + endpoints
   const IRAS_AUTH_KEY = 'iras-auth-v1';
   const IRAS_OFFERS_CACHE_PREFIX = 'iras-offers-';
-  const IRAS_API_URL = 'https://iras-bridge.vercel.app/api/iras-offers';
-
-  const BRIDGE_BASE = new URL(IRAS_API_URL).origin;
-
-  // Plans API (bridge)
-  const PLANS_API_LOAD = `${BRIDGE_BASE}/api/plans/latest`;
-  const PLANS_API_SAVE = `${BRIDGE_BASE}/api/plans/save`;
+  const IRAS_API_URL = IRAS_OFFERS_URL;
 
   // Per-user course backup keys (kept for offers only)
   function getIrasBackupKey(studentId) { return `iub-courses-backup-${studentId}`; }
   function getIrasBackupTimeKey(studentId) { return `iub-courses-backup-time-${studentId}`; }
+  function getPlansStorageKey() {
+    const studentId = getIRASAuth()?.studentId;
+    return studentId ? `${PLANS_STORAGE_PREFIX}-${studentId}` : `${PLANS_STORAGE_PREFIX}-guest`;
+  }
 
   // IUB discrete time slots
   const SLOTS = [
@@ -306,7 +83,7 @@
     return { days: dayCodes, start, end, label: `${rawDays}: ${String(m[2]).padStart(4,'0')}-${String(m[3]).padStart(4,'0')}` };
   }
   function keyOf(sec) {
-    // Stable key: course|section|DAYS:start-end — ignores faculty, uses numeric times
+    // Stable key: course|section|DAYS:start-end â€” ignores faculty, uses numeric times
     // Example: CSE101|1|ST:580-670
     const days = (sec.timing?.days || []).join('');
     const start = sec.timing?.start ?? 0;
@@ -415,7 +192,7 @@
   }
   function openIRASPopup() {
     const redirect = buildRedirectURI();
-    const url = `https://iras-auth.pages.dev/login?redirect_uri=${encodeURIComponent(redirect)}`;
+    const url = `${IRAS_AUTH_LOGIN_URL}?redirect_uri=${encodeURIComponent(redirect)}`;
     const w = 520, h = 640;
     const y = window.top.outerHeight / 2 + window.top.screenY - (h / 2);
     const x = window.top.outerWidth / 2 + window.top.screenX - (w / 2);
@@ -423,7 +200,7 @@
     if (!authPopup) window.location.href = url;
   }
 
-  // ---------- Plans: server sync (no localStorage) ----------
+  // ---------- Plans: local browser storage ----------
   function ensureDefaultPlans() {
     if (!Array.isArray(plans) || plans.length === 0) {
       const id = 'p_' + Math.random().toString(36).slice(2);
@@ -435,22 +212,14 @@
   }
 
   async function loadPlansFromServer() {
-    const auth = getIRASAuth();
-    if (!auth?.studentId || !auth?.token) { ensureDefaultPlans(); return; }
     try {
-      const r = await fetch(PLANS_API_LOAD, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ studentId: auth.studentId, token: auth.token })
-      });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      const j = await r.json();
-      const data = j?.data || {};
-      if (Array.isArray(data.plans) && data.plans.length > 0) {
+      const raw = localStorage.getItem(getPlansStorageKey());
+      const data = raw ? JSON.parse(raw) : null;
+      if (data && Array.isArray(data.plans) && data.plans.length > 0) {
         plans = data.plans;
         activePlanId = data.activePlanId || data.plans[0]?.id || null;
       } else {
-        // No saved plans yet — initialize default in-memory; will save on first change
+        // No saved plans yet: initialize default in-memory; will save on first change.
         ensureDefaultPlans();
       }
     } catch (e) {
@@ -460,16 +229,9 @@
   }
 
   async function savePlansToServer() {
-    const auth = getIRASAuth();
-    if (!auth?.studentId || !auth?.token) return; // not logged in — cannot save
     try {
-      const r = await fetch(PLANS_API_SAVE, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ studentId: auth.studentId, token: auth.token, plans, activePlanId })
-      });
-      // Silent on success/failure — we keep UI snappy
-      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const payload = JSON.stringify({ plans, activePlanId, ts: Date.now() });
+      localStorage.setItem(getPlansStorageKey(), payload);
     } catch (e) {
       console.warn('Plans save failed:', e);
       showToast('Could not save your plans right now.');
@@ -477,7 +239,7 @@
   }
 
   function saveAll() {
-    // Debounced remote save
+    // Debounced local save
     clearTimeout(savePlansTimer);
     savePlansTimer = setTimeout(() => { savePlansToServer(); }, 500);
   }
@@ -630,7 +392,7 @@
     setBackupBadge(false);
     if (errBox) { errBox.style.display = 'none'; errBox.textContent = ''; }
   
-    // Not authenticated → clear in-memory IRAS data and reindex
+    // Not authenticated â†’ clear in-memory IRAS data and reindex
     if (!auth?.studentId || !auth?.token) {
       irasSections = [];
       reindexAll();
@@ -640,7 +402,7 @@
   
     setLoading(true);
     try {
-      const response = await fetch("https://irastools.pages.dev/api/student/all-offer-courses", {
+      const response = await fetch(IRAS_OFFERS_URL, {
         method: 'POST',
         //mode: 'cors',
         cache: 'no-store',
@@ -693,7 +455,7 @@
         return;
       }
   
-      // No data from bridge → try per-user local backup
+      // No data from bridge â†’ try per-user local backup
       const ls = localStorage.getItem(getIrasBackupKey(auth.studentId));
       if (ls) {
         try {
@@ -709,7 +471,7 @@
         } catch {}
       }
   
-      // Nothing anywhere — show friendly message
+      // Nothing anywhere â€” show friendly message
       irasSections = [];
       reindexAll();
       if (typeof migratePlanItemsIfPossible === 'function') migratePlanItemsIfPossible();
@@ -723,7 +485,7 @@
     } catch (e) {
       console.warn('IRAS offers fetch failed:', e);
   
-      // Network/other error → fallback to per-user local backup if available
+      // Network/other error â†’ fallback to per-user local backup if available
       const studentId = getIRASAuth()?.studentId || '';
       const backup = studentId && localStorage.getItem(getIrasBackupKey(studentId));
       if (backup) {
@@ -785,7 +547,7 @@
       cont.appendChild(btn);
     }
     const plan = plans.find(p => p.id === activePlanId);
-    $('#planTitle').textContent = plan ? plan.name : '—';
+    $('#planTitle').textContent = plan ? plan.name : '-';
   }
 
   function filteredSections() {
@@ -875,7 +637,7 @@
         card.className = 'card';
         card.innerHTML = `
           <div class="card-top">
-            <div class="card-title">${sec.course} • Sec ${sec.section}</div>
+            <div class="card-title">${sec.course} * Sec ${sec.section}</div>
             <div class="tag">${sec.timing.label}</div>
           </div>
           <div class="card-sub">${sec.title || ''}</div>
@@ -921,7 +683,7 @@
       }
     }
     if (changed) {
-      // save to server (debounced by saveAll)
+      // save locally (debounced by saveAll)
       saveAll();
     }
   }
@@ -1005,7 +767,7 @@
           block.style.height = `${height}px`;
           block.innerHTML = `
             <div><strong>${sec.course}</strong> Sec ${sec.section}</div>
-            <div class="small">${sec.timing.label} • ${sec.title || ''}</div>
+            <div class="small">${sec.timing.label} * ${sec.title || ''}</div>
             <div class="small"></div>
           `;
           block.querySelector('.small:last-child').textContent = sec.faculty || '';
@@ -1051,7 +813,7 @@
         if (inThisSlot.length === 0) {
           const none = document.createElement('div');
           none.className = 'small';
-          none.textContent = '—';
+          none.textContent = '-';
           row.appendChild(none);
         } else {
           for (const sec of inThisSlot) {
@@ -1242,7 +1004,7 @@
     const inner = document.createElement('div');
     inner.style.cssText = 'max-width:95vw; max-height:90vh; background:#fff; padding:8px; border-radius:8px; text-align:center;';
     const p = document.createElement('div');
-    p.textContent = 'Long‑press the image to Save. Tap outside to close.';
+    p.textContent = 'Long-press the image to Save. Tap outside to close.';
     p.style.cssText = 'font: 14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; margin:0 0 8px;';
     const img = document.createElement('img');
     img.src = dataUrl;
@@ -1260,7 +1022,7 @@
       const plan = (plans || []).find(p => p.id === activePlanId);
       if (!plan) { showToast && showToast('No active plan to export.'); return; }
   
-      // Elements we’ll need
+      // Elements weâ€™ll need
       const schedEl = document.getElementById('schedule');     // desktop grid
       const planList = document.getElementById('planList');    // selected sections list
       if (!schedEl || !planList) { showToast && showToast('Nothing to export yet.'); return; }
@@ -1373,14 +1135,12 @@
   }
 
   
-  // Wire the button once (if not already)
-  document.addEventListener('DOMContentLoaded', () => {
-    const btn = document.getElementById('btnExportPlan');
-    if (btn && !btn._wiredExport) {
-      btn._wiredExport = true;
-      btn.onclick = exportCurrentPlanAsImage;
-    }
-  });
+  // Wire export button once for current mount
+  const btn = document.getElementById('btnExportPlan');
+  if (btn && !btn._wiredExport) {
+    btn._wiredExport = true;
+    btn.onclick = exportCurrentPlanAsImage;
+  }
   
   // ---------- Init ----------
   (function initApp() {
@@ -1403,6 +1163,9 @@
     renderAll();
     updateHeaderCompact();
   })();
-</script>
-</body>
-</html>
+
+  return () => {
+    window.__IUB_PLANNER_BOOTED = false;
+  };
+}
+
