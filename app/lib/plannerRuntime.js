@@ -1,6 +1,7 @@
-﻿import { IRAS_AUTH_LOGIN_URL, IRAS_OFFERS_URL } from '../../api/routes/endpoints';
+﻿export function initPlannerRuntime(html2canvas) {
+    const IRAS_AUTH_LOGIN_URL = 'https://iras-auth.pages.dev/login';
+    const IRAS_OFFERS_URL = 'https://irastools.pages.dev/api/student/all-offer-courses';
 
-export function initPlannerRuntime(html2canvas) {
   if (typeof window === 'undefined') return () => {};
   if (window.__IUB_PLANNER_BOOTED) return () => {};
   window.__IUB_PLANNER_BOOTED = true;

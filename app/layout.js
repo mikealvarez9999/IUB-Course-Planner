@@ -1,4 +1,4 @@
-import '../assets/styles/planner.css';
+import './globals.css';
 
 export const metadata = {
   title: 'IUB Course Planner',
