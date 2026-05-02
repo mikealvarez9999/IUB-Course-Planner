@@ -66,6 +66,12 @@ export default function CoursePlanner() {
                 <option value="MW">MW (Mon-Wed)</option>
                 <option value="AR">AR (Sat-Thu)</option>
               </select>
+              <select id="filterStatus" className="desktop-only" aria-label="Filter by course status">
+                <option value="">All eligibility</option>
+                <option value="eligible">Eligible only</option>
+                <option value="blocked">Prereq blocked only</option>
+                <option value="gradeA">Grade A only</option>
+              </select>
               <select id="filterAvail" aria-label="Filter by availability">
                 <option value="">Any availability</option>
                 <option value="open">Open seats</option>
@@ -85,6 +91,12 @@ export default function CoursePlanner() {
             </div>
 
             <div id="courseError" className="footnote" style={{ display: 'none', color: '#ff4d4f' }} />
+
+            <div className="course-legend" aria-label="Course status legend">
+              <div className="legend-item"><span className="legend-swatch legend-eligible" aria-hidden="true" /> <span>Eligible</span></div>
+              <div className="legend-item"><span className="legend-swatch legend-blocked" aria-hidden="true" /> <span>Prerequisite Not Done</span></div>
+              <div className="legend-item"><span className="legend-swatch legend-gradea" aria-hidden="true" /> <span>Grade A</span></div>
+            </div>
 
             <div className="table-wrap" id="tableWrap">
               <table className="table" id="courseTable" role="table" aria-label="Courses">

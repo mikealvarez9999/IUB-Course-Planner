@@ -55,6 +55,7 @@
   let savePlansTimer = null;
   let prereqLoadedForStudentId = null;
   let prereqByCourse = new Map();
+  let completedWithA = new Set();
 
   // ---------- Utilities ----------
   const $ = sel => document.querySelector(sel);
@@ -159,6 +160,16 @@
     return String(v || '').trim().toUpperCase();
   }
 
+  function normalizeGrade(v) {
+    return String(v || '').trim().toUpperCase();
+  }
+
+  function clearVerificationState() {
+    prereqLoadedForStudentId = null;
+    prereqByCourse = new Map();
+    completedWithA = new Set();
+  }
+
   function hasPassedPrereq(row) {
     const grade = String(row?.grade || '').trim().toUpperCase();
     if (grade) return grade !== 'F' && grade !== 'Z';
@@ -176,6 +187,16 @@
     }
 
     const index = new Map();
+    const withA = new Set();
+
+    for (const row of (rows || [])) {
+      const grade = normalizeGrade(row?.grade);
+      if (grade !== 'A') continue;
+      // Prerequisite payload usually stores the grade against the prerequisite course.
+      const gradedCourse = toCourseCode(row?.preReqCourseId || row?.courseId);
+      if (gradedCourse) withA.add(gradedCourse);
+    }
+
     grouped.forEach((entries, courseId) => {
       const failed = entries.filter((r) => !hasPassedPrereq(r));
       if (failed.length === 0) {
@@ -195,18 +216,35 @@
     });
 
     prereqByCourse = index;
+    completedWithA = withA;
   }
 
-  function getEligibility(courseId) {
+  function getCourseStatus(courseId) {
     const code = toCourseCode(courseId);
-    return prereqByCourse.get(code) || { eligible: true, reason: '' };
+    const eligibility = prereqByCourse.get(code) || { eligible: true, reason: '' };
+    const hasA = completedWithA.has(code);
+
+    if (hasA) {
+      return {
+        eligible: false,
+        reason: 'You already earned grade A in this course. Retake is not allowed.',
+        hasA: true,
+        toneClass: 'course-completed-a'
+      };
+    }
+
+    return {
+      eligible: eligibility.eligible,
+      reason: eligibility.reason,
+      hasA: false,
+      toneClass: eligibility.eligible ? 'course-eligible' : 'course-ineligible'
+    };
   }
 
-  async function loadPrerequisitesFromIRAS(force = false) {
+  async function loadVerificationFromIRAS(force = false) {
     const auth = getIRASAuth();
     if (!auth?.studentId || !auth?.token) {
-      prereqLoadedForStudentId = null;
-      prereqByCourse = new Map();
+      clearVerificationState();
       return;
     }
 
@@ -426,7 +464,7 @@
         const auth = event.data.payload;
         setIRASAuth(auth);
         updateAuthUI();         // wires buttons (so IRAS Login becomes Course Refresh)
-        await loadPrerequisitesFromIRAS(true).catch((e) => {
+        await loadVerificationFromIRAS(true).catch((e) => {
           console.warn('Prerequisite load failed:', e);
           showToast('Could not validate prerequisites right now.');
         });
@@ -467,6 +505,10 @@
 
   // ---------- IRAS offers load ----------
   async function refreshCourses() {
+    await loadVerificationFromIRAS(true).catch((e) => {
+      console.warn('Verification load failed:', e);
+      showToast('Could not refresh prerequisite/grade status right now.');
+    });
     await loadSectionsFromIRAS().then(() => renderAll());
   }
 
@@ -488,19 +530,11 @@
     if (!auth?.studentId || !auth?.token) {
       irasSections = [];
       reindexAll();
-      prereqLoadedForStudentId = null;
-      prereqByCourse = new Map();
+      clearVerificationState();
       if (typeof migratePlanItemsIfPossible === 'function') migratePlanItemsIfPossible();
       return;
     }
 
-    try {
-      await loadPrerequisitesFromIRAS();
-    } catch (e) {
-      console.warn('Prerequisite load failed:', e);
-      showToast('Could not validate prerequisites right now.');
-    }
-  
     setLoading(true);
     try {
       const response = await fetch(IRAS_OFFERS_URL, {
@@ -655,11 +689,18 @@
     const base = getActiveList();
     const q = ($('#search').value || '').toLowerCase();
     const groupFilter = $('#filterDay').value || '';
+    const statusFilter = $('#filterStatus')?.value || '';
     const availFilter = $('#filterAvail').value || '';
     return base.filter(sec => {
       const hay = `${sec.course} ${sec.title} ${sec.faculty}`.toLowerCase();
       if (q && !hay.includes(q)) return false;
       if (groupFilter && !inDayGroup(sec, groupFilter)) return false;
+      if (statusFilter) {
+        const courseStatus = getCourseStatus(sec.course);
+        if (statusFilter === 'eligible' && !courseStatus.eligible) return false;
+        if (statusFilter === 'blocked' && courseStatus.eligible) return false;
+        if (statusFilter === 'gradeA' && courseStatus.toneClass !== 'course-completed-a') return false;
+      }
       if (availFilter) {
         const full = sec.enrolled >= sec.capacity;
         if (availFilter === 'open' && full) return false;
@@ -705,14 +746,15 @@
       for (const sec of list) {
         const tr = document.createElement('tr');
         const full = sec.enrolled >= sec.capacity;
-        const eligibility = getEligibility(sec.course);
+        const courseStatus = getCourseStatus(sec.course);
+        const canAdd = courseStatus.eligible;
 
         tr.innerHTML = `
-          <td class="nowrap"><strong class="${eligibility.eligible ? 'course-eligible' : 'course-ineligible'}">${sec.course}</strong></td>
+          <td class="nowrap"><strong class="${courseStatus.toneClass}">${sec.course}</strong></td>
           <td>${sec.section}</td>
           <td><span class="tag">${sec.timing.label}</span></td>
-          <td class="wrap ${eligibility.eligible ? 'course-eligible' : 'course-ineligible'}">${sec.faculty || ''}</td>
-          <td class="wrap ${eligibility.eligible ? 'course-eligible' : 'course-ineligible'}">${sec.title || ''}</td>
+          <td class="wrap ${courseStatus.toneClass}">${sec.faculty || ''}</td>
+          <td class="wrap ${courseStatus.toneClass}">${sec.title || ''}</td>
           <td class="right"><span class="avail ${full ? 'full' : 'ok'}">${sec.enrolled}/${sec.capacity}</span></td>
           <td class="actions"></td>
         `;
@@ -721,6 +763,7 @@
         const btnAdd = document.createElement('button');
         btnAdd.className = 'btn';
         btnAdd.textContent = 'Add To Plan';
+        if (!canAdd && courseStatus.reason) btnAdd.title = courseStatus.reason;
         btnAdd.onclick = () => tryAddToPlan(sec, active);
         actions.appendChild(btnAdd);
 
@@ -734,15 +777,16 @@
 
       for (const sec of list) {
         const full = sec.enrolled >= sec.capacity;
-        const eligibility = getEligibility(sec.course);
+        const courseStatus = getCourseStatus(sec.course);
+        const canAdd = courseStatus.eligible;
         const card = document.createElement('div');
         card.className = 'card';
         card.innerHTML = `
           <div class="card-top">
-            <div class="card-title ${eligibility.eligible ? 'course-eligible' : 'course-ineligible'}"><span>${sec.course}</span><span class="card-sec-inline">Sec ${sec.section}</span></div>
+            <div class="card-title ${courseStatus.toneClass}"><span>${sec.course}</span><span class="card-sec-inline">Sec ${sec.section}</span></div>
             <div class="tag">${sec.timing.label}</div>
           </div>
-          <div class="card-sub ${eligibility.eligible ? 'course-eligible' : 'course-ineligible'}">${sec.title || ''}</div>
+          <div class="card-sub ${courseStatus.toneClass}">${sec.title || ''}</div>
           <div class="card-meta">
             <span class="small"><strong>Faculty:</strong> <span class="fac"></span></span>
             <span class="small"><strong>Enrolled:</strong> <span class="${full ? 'avail full' : 'avail ok'}">${sec.enrolled}/${sec.capacity}</span></span>
@@ -752,7 +796,9 @@
           </div>
         `;
         card.querySelector('.fac').textContent = sec.faculty || '';
-        card.querySelector('.btn').onclick = () => tryAddToPlan(sec, active);
+        const addBtn = card.querySelector('.btn');
+        if (!canAdd && courseStatus.reason) addBtn.title = courseStatus.reason;
+        addBtn.onclick = () => tryAddToPlan(sec, active);
         cards.appendChild(card);
       }
     }
@@ -790,9 +836,9 @@
     }
   }
   function tryAddToPlan(sec, active) {
-    const eligibility = getEligibility(sec.course);
-    if (!eligibility.eligible) {
-      alert(`Cannot add ${sec.course}.\n${eligibility.reason || 'Prerequisite requirements are not satisfied.'}`);
+    const courseStatus = getCourseStatus(sec.course);
+    if (!courseStatus.eligible) {
+      alert(`Cannot add ${sec.course}.\n${courseStatus.reason || 'This course is not currently eligible.'}`);
       return;
     }
 
@@ -1083,6 +1129,7 @@
 
   $('#search').oninput = () => renderCourseTableOrCards();
   $('#filterDay').onchange = () => renderCourseTableOrCards();
+  $('#filterStatus').onchange = () => renderCourseTableOrCards();
   $('#filterAvail').onchange = () => renderCourseTableOrCards();
 
   // Theme toggle (switch)
@@ -1263,8 +1310,8 @@
     // Show correct header buttons now
     updateAuthUI();
 
-    // Preload prerequisite status for list coloring and add validation.
-    loadPrerequisitesFromIRAS().then(() => { renderAll(); }).catch(()=>{});
+    // Preload prerequisite and grade status for list coloring and add validation.
+    loadVerificationFromIRAS().then(() => { renderAll(); }).catch(()=>{});
   
     // Kick off async loads without blocking/wedging the script
     loadPlansFromServer().then(() => { renderAll(); }).catch(()=>{ /* keep UI */ });

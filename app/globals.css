@@ -119,6 +119,7 @@ html[data-theme="light"] select {
 /* Filters row */
 .filtersWrap { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 .filtersWrap select { width: auto; min-width: 220px; }
+.desktop-only { display: inline-flex; }
 
 /* Buttons */
 .btn {
@@ -255,12 +256,15 @@ html[data-theme="light"] .card { background:#ffffff; }
 .card-sec-inline { font-size: var(--font-small); font-weight: 500; }
 .course-eligible { color: var(--ok); }
 .course-ineligible { color: var(--danger); }
+.course-completed-a { color: #a855f7; }
 .card-sub { color:#b8c5d6; font-size: var(--font-small); }
 .card-sub.course-eligible { color: var(--ok); }
 .card-sub.course-ineligible { color: var(--danger); }
+.card-sub.course-completed-a { color: #a855f7; }
 html[data-theme="light"] .card-sub { color:#334155; }
 html[data-theme="light"] .card-sub.course-eligible { color: var(--ok); }
 html[data-theme="light"] .card-sub.course-ineligible { color: var(--danger); }
+html[data-theme="light"] .card-sub.course-completed-a { color: #7e22ce; }
 .card-meta { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
 .card-actions { display:flex; gap:8px; }
 
@@ -304,6 +308,12 @@ html[data-theme="light"] .section-list .item { border-color: var(--border); }
 .legend { display:flex; gap:8px; flex-wrap:wrap; margin-bottom: 8px; }
 .pill { padding: 2px 6px; border-radius: 999px; background:#193759; border:1px solid #284d78; font-size:12px; color:#cfe6ff; }
 html[data-theme="light"] .pill { background:#e2e8f0; border-color:#94a3b8; color:#0f172a; }
+.course-legend { display:flex; gap:12px; flex-wrap:wrap; margin: 4px 0 8px; align-items:center; font-size: 12px; color: var(--muted); }
+.legend-item { display:inline-flex; align-items:center; gap:6px; white-space: nowrap; }
+.legend-swatch { width: 10px; height: 10px; border-radius: 2px; display:inline-block; flex: 0 0 auto; }
+.legend-eligible { background: var(--ok); }
+.legend-blocked { background: var(--danger); }
+.legend-gradea { background: #a855f7; }
 
 /* Toast */
 #toast {
@@ -345,6 +355,7 @@ html[data-theme="light"] #toast { color:#0f172a; background:#f8fafc; border-colo
     flex-direction: column; gap:10px;
   }
   .filtersWrap select { width: 100%; min-width: 0; }
+  .desktop-only { display: none !important; }
   .filtersWrap.open { display:flex; }
   #filtersBackdrop.show { display:block; }
   .mobile-only { display:inline-flex; }
