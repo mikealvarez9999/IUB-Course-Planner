@@ -148,7 +148,7 @@
     clearTimeout(showToast._timer); showToast._timer = setTimeout(()=>t.classList.remove('show'), 2800);
   }
   function slotIndexFor(start, end) {
-    for (let i=0;i<SLOTS.length;i++) if (SLOTS[i].start===start && SLOTS[i].end===end) return i;
+    for (let i=0;i<SLOTS.length;i++) if (SLOTS[i].start===start) return i;
     return -1;
   }
   function inDayGroup(sec, groupKey) {
