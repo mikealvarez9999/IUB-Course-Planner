@@ -747,7 +747,7 @@
       if (statusFilter) {
         const courseStatus = getCourseStatus(sec.course);
         if (statusFilter === 'eligible' && !courseStatus.eligible) return false;
-        if (statusFilter === 'blocked' && courseStatus.eligible) return false;
+        if (statusFilter === 'blocked' && courseStatus.toneClass !== 'course-ineligible') return false;
         if (statusFilter === 'gradeA' && courseStatus.toneClass !== 'course-completed-a') return false;
       }
       if (availFilter) {
