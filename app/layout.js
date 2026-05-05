@@ -9,6 +9,10 @@ export const metadata = {
   title: 'IUB Course Planner',
   description: 'Build conflict‑free course plans from IRAS course offers. Fast, mobile‑friendly, and option to export your plan as JPG.',
   applicationName: 'IUB Course Planner',
+  robots: {
+    index: true,
+    follow: true
+  },
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'),
   alternates: {
     canonical: '/'
