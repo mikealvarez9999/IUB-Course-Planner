@@ -2,6 +2,7 @@
     const IRAS_AUTH_LOGIN_URL = 'https://iras-auth.pages.dev/login';
     const IRAS_OFFERS_URL = 'https://irastools.pages.dev/api/student/all-offer-courses';
   const IRAS_PREREQ_PROXY_URL = '/api/prerequisites';
+  const IRAS_REGISTERED_COURSES_PROXY_URL = '/api/registered-courses';
 
   if (typeof window === 'undefined') return () => {};
   if (window.__IUB_PLANNER_BOOTED) return () => {};
@@ -54,6 +55,7 @@
   let isLoadingCourses = false;
   let savePlansTimer = null;
   let prereqLoadedForStudentId = null;
+  let gradeHistoryLoadedForStudentId = null;
   let prereqByCourse = new Map();
   let completedWithA = new Set();
 
@@ -166,6 +168,7 @@
 
   function clearVerificationState() {
     prereqLoadedForStudentId = null;
+    gradeHistoryLoadedForStudentId = null;
     prereqByCourse = new Map();
     completedWithA = new Set();
   }
@@ -187,15 +190,6 @@
     }
 
     const index = new Map();
-    const withA = new Set();
-
-    for (const row of (rows || [])) {
-      const grade = normalizeGrade(row?.grade);
-      if (grade !== 'A') continue;
-      // Prerequisite payload usually stores the grade against the prerequisite course.
-      const gradedCourse = toCourseCode(row?.preReqCourseId || row?.courseId);
-      if (gradedCourse) withA.add(gradedCourse);
-    }
 
     grouped.forEach((entries, courseId) => {
       const failed = entries.filter((r) => !hasPassedPrereq(r));
@@ -216,6 +210,19 @@
     });
 
     prereqByCourse = index;
+  }
+
+  function buildCompletedCourseIndex(rows) {
+    const withA = new Set();
+
+    for (const row of (rows || [])) {
+      const courseId = toCourseCode(row?.courseId);
+      if (!courseId) continue;
+      if (normalizeGrade(row?.grade) === 'A') {
+        withA.add(courseId);
+      }
+    }
+
     completedWithA = withA;
   }
 
@@ -248,30 +255,72 @@
       return;
     }
 
-    if (!force && prereqLoadedForStudentId === auth.studentId && prereqByCourse.size > 0) {
+    if (
+      !force &&
+      prereqLoadedForStudentId === auth.studentId &&
+      gradeHistoryLoadedForStudentId === auth.studentId
+    ) {
       return;
     }
 
-    const response = await fetch(IRAS_PREREQ_PROXY_URL, {
-      method: 'POST',
-      cache: 'no-store',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        studentId: auth.studentId,
-        token: auth.token
+    const [prereqResult, gradeHistoryResult] = await Promise.allSettled([
+      fetch(IRAS_PREREQ_PROXY_URL, {
+        method: 'POST',
+        cache: 'no-store',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          studentId: auth.studentId,
+          token: auth.token
+        })
+      }),
+      fetch(IRAS_REGISTERED_COURSES_PROXY_URL, {
+        method: 'POST',
+        cache: 'no-store',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          studentId: auth.studentId,
+          token: auth.token
+        })
       })
-    });
+    ]);
 
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok || String(payload?.message || '').toLowerCase() === 'invalid request') {
-      throw new Error(payload?.message || ('Prerequisite API HTTP ' + response.status));
+    const errors = [];
+
+    if (prereqResult.status === 'fulfilled') {
+      const response = prereqResult.value;
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || String(payload?.message || '').toLowerCase() === 'invalid request') {
+        errors.push(new Error(payload?.message || ('Prerequisite API HTTP ' + response.status)));
+      } else {
+        buildPrereqIndex(Array.isArray(payload?.data) ? payload.data : []);
+        prereqLoadedForStudentId = auth.studentId;
+      }
+    } else {
+      errors.push(prereqResult.reason);
     }
 
-    buildPrereqIndex(Array.isArray(payload?.data) ? payload.data : []);
-    prereqLoadedForStudentId = auth.studentId;
+    if (gradeHistoryResult.status === 'fulfilled') {
+      const response = gradeHistoryResult.value;
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || String(payload?.message || '').toLowerCase() === 'invalid request') {
+        errors.push(new Error(payload?.message || ('Registered-courses API HTTP ' + response.status)));
+      } else {
+        buildCompletedCourseIndex(Array.isArray(payload?.data) ? payload.data : []);
+        gradeHistoryLoadedForStudentId = auth.studentId;
+      }
+    } else {
+      errors.push(gradeHistoryResult.reason);
+    }
+
+    if (errors.length > 0) {
+      throw new Error(errors.map((err) => err?.message || String(err)).join('; '));
+    }
   }
 
   // ---------- IRAS Auth ----------
@@ -465,8 +514,8 @@
         setIRASAuth(auth);
         updateAuthUI();         // wires buttons (so IRAS Login becomes Course Refresh)
         await loadVerificationFromIRAS(true).catch((e) => {
-          console.warn('Prerequisite load failed:', e);
-          showToast('Could not validate prerequisites right now.');
+          console.warn('Verification load failed:', e);
+          showToast('Could not validate prerequisite/grade status right now.');
         });
         // Load plans first, then courses, then render
         await loadPlansFromServer().catch(()=>{});
