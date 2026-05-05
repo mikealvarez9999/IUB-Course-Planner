@@ -2,54 +2,58 @@
 
 Assalamualaikum! 👋
 
-As a student of Independent University, Bangladesh (IUB), I was tired of juggling between our sloggy registration portal iRAS’s messy course offers and my jumbled-up paper notes just to figure out a few conflict‑free plans for registration. That’s where the idea for this tool came from. I wanted a single app that would take all those messy course offers, present them cleanly, and let me build as many plans as I want—without overlaps, without hassle.
+As a student of Independent University, Bangladesh (IUB), I was tired of opening iRAS, scrolling endlessly through messy course offers, manually checking prerequisites, matching timings, and starting over all again. That's where the idea for this tool came from. I wanted a single app that would take all those messy course offers, present them cleanly, and let me build as many plans as I want—without overlaps, without hassle, and without prerequisite mistakes.
 
-Today, I’m excited to share the result:  
-✨ **IUB Course Planner v1.0** ✨
+Today, I'm excited to share the result:  
+✨ **IUB Course Planner v1.1** ✨
 
-A tiny, fast web app to help you breeze through course planning before registration.
+A simple web app built to make course planning faster, cleaner, and much less stressful.
 
 ---
 
 ## 🚀 Features
 
+- **Log in with iRAS account** and fetch your real course offers
 - **Browse real iRAS course offers** in a clean table (desktop) or cards (mobile)
+- **Eligibility-based course grouping**: Courses are color-tagged based on your eligibility
+- **Prerequisite tracking**: Courses with incomplete prerequisites are marked accordingly
+- **Smart plan building**: Ineligible courses cannot be added to your plans (automatic validation)
 - **Search** by course code, title, or faculty
-- **Filter** by day group (ST, MW, AR) or seat availability
-- **Build multiple plans** — with automatic conflict checks (no overlaps!)
+- **Filter** by day group (ST, MW, AR), seat availability, and eligibility (PC)
+- **Build unlimited plans** — with automatic conflict checks (no overlaps!)
 - **Rename, duplicate, and delete** your plans
 - **Light/Dark mode** and responsive UI for PC or mobile
 - **Export your plan as a JPG**: One click saves a snapshot of your routine grid + selected sections as a single image (perfect for registration time!)
-- **PWA enabled**: Install on mobile via “Add to Home Screen”
-- **Data privacy**: No ads, no trackers. Logout clears your data.
+- **Backup support**: Your last fetched course offers are cached locally—refer to them even if iRAS offers disappear
+- **PWA enabled**: Install on mobile via "Add to Home Screen"
+- **Data privacy**: No ads, no trackers. Your credentials are never stored. Logout clears your data.
 
 ---
 
 ## 📝 How to Use
 
-1. **Open the app:** [https://mikealvarez9999.github.io/IUB-Course-Planner](https://mikealvarez9999.github.io/IUB-Course-Planner)
-2. Click **“iRAS Login”** and sign in with your iRAS credentials.
-3. Click **“Course Refresh”** to pull the latest offers (wait a few seconds for courses to load).
-4. Browse/search courses, then hit **“Add To Plan”** on the sections you want.
-5. When you’re happy with your plan, hit **“Export this plan (JPG)”** to save a clean snapshot.
-6. That’s it! ✨
-
-**Tip:** If the login window doesn’t open, please allow popups for the site. This shouldn't usually happen. 
+1. **Open the app:** [https://iub-course-planner.vercel.app/](https://iub-course-planner.vercel.app/)
+2. Click **"IRAS Login"** and sign in with your IRAS credentials.
+3. Browse/search courses, then hit **"Add To Plan"** on the sections you want.
+4. Build as many plans as you want with automatic conflict prevention.
+5. When you're happy with your plan, hit **"Export this plan (JPG)"** to save a clean snapshot.
+6. That's it! ✨
 
 ---
 
 ## 💡 Why This Helps
 
-- Try unlimited combos: no more paper-crumbling math!
-- Conflict prevention: no overlapping sections in your plan.
-- If iRAS suddenly shows nothing (we IUBians have all been there), the app shows your last saved backup* so you don’t lose your work.
-- Works on any device: PC or mobile. Looks clean everywhere.
+- **Prevent prerequisite mistakes**: The planner automatically tracks your eligibility and prevents you from adding ineligible courses.
+- **Try unlimited combos**: Build and compare as many plans as you want—no more paper-crumbling math!
+- **Conflict prevention**: No overlapping sections in your plan.
+- **Backup support**: If iRAS suddenly shows nothing (we IUBians have all been there), the app shows your last saved course offers so you don't go in blind.
+- **Works on any device**: PC or mobile. Looks clean everywhere.
 
 ---
 
 ## ⚠️ A Few Notes
 
-- *The last-saved backup is cached in your browser. If you use incognito mode or clear cache, the backup will disappear.
+- **Backup support**: Your last fetched course offers are cached in your browser. Avoid incognito mode if you want this backup feature to work.
 - This is **not** an official IUB tool—just a side project to help make registration a little less stressful.
 - Your iRAS login is **never stored** or sent anywhere except iRAS.
 - No ads, no trackers, nothing shady.
