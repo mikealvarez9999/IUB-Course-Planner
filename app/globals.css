@@ -66,6 +66,7 @@ header {
 .brand { display:flex; align-items:baseline; gap:10px; transition: gap .2s ease; }
 .brand h1 { font-size: var(--font-title); margin: 0; letter-spacing: 0.2px; }
 .brand .sub { color: var(--muted); font-size: var(--font-small); }
+.creator-line { display:flex; align-items:center; gap:8px; }
 .spacer { flex: 1; }
 
 /* Auth UI */
@@ -120,6 +121,10 @@ html[data-theme="light"] select {
 .filtersWrap { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 .filtersWrap select { width: auto; min-width: 220px; }
 .desktop-only { display: inline-flex; }
+.desk-auth-wrap { display:inline-flex; align-items:center; gap:8px; }
+.nest-auth-logo { width: 28px; height: 28px; object-fit: contain; }
+.nest-auth-logo-mobile,
+.nest-auth-logo-desktop { display: none; }
 
 /* Buttons */
 .btn {
@@ -192,6 +197,7 @@ html[data-theme="light"] .table th { color:#334155; background:#f3f4f6; }
   /* Show desktop IRAS button near Done; hide header login */
   #btnIRASLoginDesk { display:inline-block !important; }
   #btnIRASLoginHeader { display:none !important; }
+  .nest-auth-logo-desktop { display:inline-block; }
 
   .table { table-layout: fixed; width: 100%; }
 
@@ -332,6 +338,8 @@ html[data-theme="light"] #toast { color:#0f172a; background:#f8fafc; border-colo
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .brand { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .creator-line { gap: 6px; }
+  .nest-auth-logo-mobile { display:inline-block; }
   header.compact { padding: 8px 12px; box-shadow: 0 1px 8px rgba(0,0,0,0.25); }
   header.compact .brand { flex-direction: row; align-items: center; gap: 8px; }
   header.compact .brand .sub { display: none; }
