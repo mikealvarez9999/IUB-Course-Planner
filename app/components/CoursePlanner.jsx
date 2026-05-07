@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import html2canvas from 'html2canvas';
 import { initPlannerRuntime } from '../lib/plannerRuntime';
+import nestAuthLogo from '../../assets/icons/IMG_8338.PNG';
 
 export default function CoursePlanner() {
   const cleanupRef = useRef(null);
@@ -21,7 +22,10 @@ export default function CoursePlanner() {
       <header id="appHeader">
         <div className="brand">
           <h1>IUB Course Planner</h1>
-          <div className="sub">Created with curiosity by Raiyan Bin Rais</div>
+          <div className="creator-line">
+            <div className="sub">Created with curiosity by Raiyan Bin Rais</div>
+            <img className="nest-auth-logo nest-auth-logo-mobile" src={nestAuthLogo.src} alt="IUB NEST auth logo" />
+          </div>
         </div>
         <div className="spacer" />
 
@@ -78,7 +82,10 @@ export default function CoursePlanner() {
                 <option value="full">Full</option>
               </select>
               <button className="btn alt mobile-only" id="btnCloseFilters">Done</button>
-              <button id="btnIRASLoginDesk" className="btn iras" type="button" title="Sign in with IRAS" style={{ display: 'none' }}>IRAS Login</button>
+              <div className="desk-auth-wrap">
+                <button id="btnIRASLoginDesk" className="btn iras" type="button" title="Sign in with IRAS" style={{ display: 'none' }}>IRAS Login</button>
+                <img className="nest-auth-logo nest-auth-logo-desktop" src={nestAuthLogo.src} alt="IUB NEST auth logo" />
+              </div>
             </div>
 
             <div className="row" style={{ gap: '8px', alignItems: 'center', marginTop: '6px' }}>
