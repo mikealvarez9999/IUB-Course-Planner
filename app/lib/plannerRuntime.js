@@ -1,6 +1,6 @@
 ﻿export function initPlannerRuntime(html2canvas) {
-    const IRAS_AUTH_LOGIN_URL = 'https://iras-auth.pages.dev/login';
-    const IRAS_OFFERS_URL = 'https://irastools.pages.dev/api/student/all-offer-courses';
+    const IRAS_AUTH_LOGIN_URL = process.env.NEXT_PUBLIC_IRAS_AUTH_LOGIN_URL;
+    const IRAS_OFFERS_URL = process.env.NEXT_PUBLIC_IRAS_OFFERS_URL;
   const IRAS_PREREQ_PROXY_URL = '/api/prerequisites';
   const IRAS_REGISTERED_COURSES_PROXY_URL = '/api/registered-courses';
 

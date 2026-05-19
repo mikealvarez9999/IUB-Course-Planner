@@ -10,7 +10,9 @@ export async function POST(request) {
       return Response.json({ message: 'Missing studentId or token' }, { status: 400 });
     }
 
-    const remoteUrl = `https://iras.iub.edu.bd:8079//api/v1/registration/${encodeURIComponent(studentId)}/pre-requisite-courses`;
+    const baseUrl = process.env.IRAS_API_REGISTRATION_BASE_URL;
+    const remoteUrl = `${baseUrl}/${encodeURIComponent(studentId)}/pre-requisite-courses`;
+    
     const upstream = await fetch(remoteUrl, {
       method: 'GET',
       cache: 'no-store',
@@ -18,8 +20,8 @@ export async function POST(request) {
         Accept: 'application/json',
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
-        Origin: 'https://irasv1.iub.edu.bd',
-        Referer: 'https://irasv1.iub.edu.bd/'
+        Origin: process.env.IRAS_ORIGIN_URL || '',
+        Referer: (process.env.IRAS_ORIGIN_URL || '') + '/'
       }
     });
 
