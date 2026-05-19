@@ -10,7 +10,7 @@ export async function POST(request) {
       return Response.json({ message: 'Missing studentId or token' }, { status: 400 });
     }
 
-    const baseUrl = process.env.IRAS_API_REGISTRATION_BASE_URL;
+    const baseUrl = process.env.IRAS_API_BASE_URL;
     const remoteUrl = `${baseUrl}/${encodeURIComponent(studentId)}/pre-requisite-courses`;
     
     const upstream = await fetch(remoteUrl, {
