@@ -3,11 +3,15 @@
 import DayTabs from './DayTabs';
 import Schedule from './Schedule';
 
-export default function PlansPanel() {
+export default function PlansPanel({ isMobileOpen, onClose }) {
   return (
-    <div className="panel" id="planPanel">
+    <div className={`panel ${isMobileOpen ? 'mobile-open' : ''}`} id="planPanel">
       <div className="body">
-        <h2>Plans</h2>
+        <div className="drawer-header mobile-only">
+          <h2>Routine Grid</h2>
+          <button className="btn danger" style={{ fontWeight: 'bold', color: '#ff4444', borderColor: '#ff4444' }} onClick={onClose}>Close</button>
+        </div>
+        <h2 className="desktop-only">Plans</h2>
         <div className="row" style={{ marginBottom: '8px' }}>
           <div className="plans" id="plans" />
           <button className="btn plan new" id="btnQuickAddPlan" title="New plan">
@@ -50,7 +54,7 @@ export default function PlansPanel() {
         <div style={{ marginTop: '12px' }}>
           <div className="row" style={{ justifyContent: 'space-between' }}>
             <div className="small">Conflicts are prevented on add.</div>
-            <button className="btn" id="btnExportPlan">
+            <button className="btn desktop-only" id="btnExportPlan">
               Export this plan (JPG)
             </button>
             <button className="btn" id="btnClearActive">
